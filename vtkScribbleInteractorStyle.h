@@ -53,6 +53,10 @@ public:
 
   // Empty both the foreground and background selection
   void ClearSelections();
+  
+  void ClearForegroundSelections();
+  
+  void ClearBackgroundSelections();
 
   // Connect the tracer to the interactor, etc.
   void InitializeTracer(vtkImageActor* imageActor);

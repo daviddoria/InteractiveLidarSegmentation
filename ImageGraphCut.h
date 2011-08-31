@@ -66,11 +66,11 @@ public:
   float MaxColorDifference;
   
   // This function is purely for debugging. It lets you visualize the edge weights that will be used in the graph cut computation.
-  void WriteEdges(const std::string& fileName);
-  
+    
   // Several initializations are done here
   void SetImage(ImageType::Pointer image);
-
+  ImageType::Pointer GetImage();
+  
   // Create and cut the graph (The main driver function)
   void PerformSegmentation();
 
@@ -94,16 +94,15 @@ public:
   // Set the weight between the regional and boundary terms
   void SetLambda(float);
 
-  // Set the weight of the RGB components of the pixels vs the rest of the components
-  void SetRGBWeight(float);
-
   // Set the number of bins per dimension of the foreground and background histograms
   void SetNumberOfHistogramBins(int);
 
+  bool Debug;
+
+  bool IncludeDepthInHistogram;
 protected:
 
-  // These are for tracking how many of each type of difference was used.
-  unsigned int UsedColor, UsedDepth;
+  void CreateGraphNodes();
   
   // A Kolmogorov graph object
   GraphType* Graph;
@@ -126,85 +125,31 @@ protected:
   // An image which keeps tracks of the mapping between pixel index and graph node id
   NodeImageType::Pointer NodeImage;
 
-  // Determine if a number is NaN
-  bool IsNaN(const double a);
-
-  float RGBWeight;
-
-  // Typedefs
-  typedef itk::Statistics::ListSample<PixelType> SampleType;
-  typedef itk::Statistics::SampleToHistogramFilter<SampleType, HistogramType> SampleToHistogramFilterType;
 
   // Create the histograms from the users selections
-  void CreateSamples();
-
-  // Estimate the "camera noise"
-  double ComputeNoise();
+  //void CreateColorHistogramSamples();
+  //void CreateFullHistogramSamples();
+  //void CreateColorAndDepthHistogramSamples();
+  void CreateHistogram(unsigned int numberOfComponents);
 
   // Create a Kolmogorov graph structure from the image and selections
+  void CreateGraphManually();
   void CreateGraph();
-
+  void CreateNWeights();
+  void CreateTWeights();
+  
   // Perform the s-t min cut
   void CutGraph();
 
-  // Compute means and medians of color and depth differences
-  void ComputeGlobalStatistics();
-  
-  // Compute the average color difference between all pairs of neighboring pixels
-  float ComputeAverageColorDifference();
-
-  // Compute the average depth difference between all pairs of neighboring pixels
-  float ComputeAverageDepthDifference();
-
-  // Compute the median color difference between all pairs of neighboring pixels
-  float ComputeMedianColorDifference();
-
-  // Compute the median depth difference between all pairs of neighboring pixels
-  float ComputeMedianDepthDifference();
-  
-  // Compute all depth differences
-  void ComputeAllDepthDifferences();
-  
-  // Compute all color differences
-  void ComputeAllColorDifferences();
-
-  // If the image is more than 3 channels, compute the weighted difference,
-  // weighting the first 3 channels by RGB_Weight/3 and the remaining channels by (1-RGB_Weight)/(NumChannels-3)
-  //float PixelDifference(PixelType, PixelType);
-
-  // Compute the difference of the first 3 channels (assumed to be R, G, and B)
-  //float PixelColorDifference(PixelType, PixelType);
-  //float HSVColorDifference(PixelType, PixelType);
-  //float CIELABColorDifference(PixelType, PixelType);
-
-  // Compute the difference of the first 3 channels (assumed to be R, G, and B)
-  //float DataNormalizedPixelColorDifference(PixelType, PixelType);
-  //float AbsoluteNormalizedPixelColorDifference(PixelType, PixelType);
-  
-  // Compute the difference of the 4th channel (channel 3) (assumed to be Depth)
-  //float PixelDepthDifference(PixelType, PixelType);
-  
-  // Compute the difference of the 4th channel (channel 3) (assumed to be Depth)
-  //float AbsoluteNormalizedPixelDepthDifference(PixelType, PixelType);
-  //float DataNormalizedPixelDepthDifference(PixelType, PixelType);
-
-  // Compute the normalized color difference and normalized depth difference and return the largest.
-  //float PixelDifferenceMaxOfColorOrDepth(PixelType, PixelType);
-  
-  // Compute the 
-  //float PixelDifferenceDepthWeightedByColor(PixelType, PixelType);
 
   void ConstructNeighborhoodIterator(NeighborhoodIteratorType* iterator, std::vector<NeighborhoodIteratorType::OffsetType>& neighbors);
   
   // Member variables
-  SampleType::Pointer ForegroundSample;
-  SampleType::Pointer BackgroundSample;
+
 
   const HistogramType* ForegroundHistogram;
   const HistogramType* BackgroundHistogram;
 
-  SampleToHistogramFilterType::Pointer ForegroundHistogramFilter;
-  SampleToHistogramFilterType::Pointer BackgroundHistogramFilter;
 
   // The image to be segmented
   ImageType::Pointer Image;
@@ -218,8 +163,8 @@ protected:
   // This function performs the negative exponential weighting
   float ComputeEdgeWeight(float difference);
   
-  float CameraNoise;
   
+
 };
 
 #endif

@@ -10,6 +10,8 @@
 typedef itk::VectorImage<float,2> ImageType;
 typedef itk::VariableLengthVector<float> PixelType;
 
+typedef itk::Image<itk::CovariantVector<float, 3> > Vector3ImageType;
+
 typedef itk::Image<float, 2> FloatScalarImageType;
 
 // For writing images, we need to first convert to actual unsigned char images

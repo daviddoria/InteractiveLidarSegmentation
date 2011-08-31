@@ -300,6 +300,16 @@ void MainWindow::on_btnClearSelections_clicked()
   this->GraphCutStyle->ClearSelections();
 }
 
+void MainWindow::on_btnClearForeground_clicked()
+{
+  this->GraphCutStyle->ClearForegroundSelections();
+}
+
+void MainWindow::on_btnClearBackground_clicked()
+{
+  this->GraphCutStyle->ClearBackgroundSelections();
+}
+
 void MainWindow::on_btnSaveSelections_clicked()
 {
   QString directoryName = QFileDialog::getExistingDirectory(this,
@@ -331,8 +341,24 @@ void MainWindow::on_btnSaveSelections_clicked()
   writer->Update();
 }
 
+
+void MainWindow::on_btnLoadSelections_clicked()
+{
+  // TODO: 
+  QString directoryName = QFileDialog::getExistingDirectory(this,
+     "Open Directory", QDir::homePath(), QFileDialog::ShowDirsOnly);
+
+  std::string foregroundFilename = QDir(directoryName).absoluteFilePath("foreground.png").toStdString();
+  std::string backgroundFilename = QDir(directoryName).absoluteFilePath("background.png").toStdString();
+
+}
+
 void MainWindow::on_btnCut_clicked()
 {
+  this->GraphCut.Debug = this->chkDebug->isChecked();
+  
+  this->GraphCut.IncludeDepthInHistogram = this->chkDepthHistogram->isChecked();
+ 
   if(this->GraphCut.DifferenceFunction)
     {
     delete this->GraphCut.DifferenceFunction;
@@ -341,33 +367,25 @@ void MainWindow::on_btnCut_clicked()
   // Setup the Difference object
   if(this->radDepthOnly->isChecked())
     {
-    //this->GraphCut.DifferenceFunction = new DifferenceDepth;
-    this->GraphCut.DifferenceFunction = new DifferenceDepthDataNormalized;
+    this->GraphCut.DifferenceFunction = new DifferenceDepth;
+    //this->GraphCut.DifferenceFunction = new DifferenceDepthDataNormalized;
     }
   else if(this->radColorOnly->isChecked())
     {
-    //this->GraphCut.DifferenceFunction = new DifferenceColor;
-    this->GraphCut.DifferenceFunction = new DifferenceColorDataNormalized;
+    this->GraphCut.DifferenceFunction = new DifferenceColor;
+    //this->GraphCut.DifferenceFunction = new DifferenceColorDataNormalized;
     }
   else if(this->radCombination->isChecked())
     {
-    this->GraphCut.DifferenceFunction = new DifferenceDepthWeightedByColor;
+    this->GraphCut.DifferenceFunction = new DifferenceMaxOfColorOrDepth;
     }
   else
     {
     std::cerr << "Something is wrong - the radio button must be one of radDepthOnly, radColorOnly, or radCombination." << std::endl;
     exit(-1);
     }
-    
-  this->GraphCut.DifferenceFunction->AverageColorDifference = this->GraphCut.AverageColorDifference;
-  this->GraphCut.DifferenceFunction->MedianColorDifference = this->GraphCut.MedianColorDifference;
-  this->GraphCut.DifferenceFunction->MinColorDifference = this->GraphCut.MinColorDifference;
-  this->GraphCut.DifferenceFunction->MaxColorDifference = this->GraphCut.MaxColorDifference;
   
-  this->GraphCut.DifferenceFunction->AverageDepthDifference = this->GraphCut.AverageDepthDifference;
-  this->GraphCut.DifferenceFunction->MedianDepthDifference = this->GraphCut.MedianDepthDifference;
-  this->GraphCut.DifferenceFunction->MinDepthDifference = this->GraphCut.MinDepthDifference;
-  this->GraphCut.DifferenceFunction->MaxDepthDifference = this->GraphCut.MaxDepthDifference;
+  this->GraphCut.DifferenceFunction->SetImage(this->GraphCut.GetImage());
   
   // Get the number of bins from the slider
   this->GraphCut.SetNumberOfHistogramBins(this->sldHistogramBins->value());
@@ -446,6 +464,9 @@ void MainWindow::OpenFile()
     return;
     }
 
+  // Store the path so that temp files can be written to the same path as the input image
+  // path = myFile.absolutePath().toStdString()
+  
   // Clear the scribbles
   this->GraphCutStyle->ClearSelections();
 

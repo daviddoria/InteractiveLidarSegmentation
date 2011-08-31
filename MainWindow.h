@@ -47,7 +47,10 @@ public slots:
 
   // Buttons, radio buttons, and sliders
   void on_btnClearSelections_clicked();
+  void on_btnClearBackground_clicked();
+  void on_btnClearForeground_clicked();
   void on_btnSaveSelections_clicked();
+  void on_btnLoadSelections_clicked();
   void on_btnCut_clicked();
   void on_radForeground_clicked();
   void on_radBackground_clicked();

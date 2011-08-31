@@ -1,26 +1,20 @@
 #ifndef DIFFERENCE_H
 #define DIFFERENCE_H
 
+// STL
 #include <cmath>
 
+// VTK
 #include <vtkMath.h>
 
-class CIELABColorDifference;
-class HSVColorDifference;
-class DifferenceDepth;
-class DifferenceColor;
-class DifferenceMaxOfColorOrDepth;
-class DifferenceDepthWeightedByColor;
-class DifferenceColorDataNormalized;
-class DifferenceColorAbsoluteNormalized;
-class DifferenceDepthDataNormalized;
-class DifferenceDepthAbsoluteNormalized;
+// Custom
+#include "Types.h"
 
 class Difference
 {
 public:
   // Default constructor
-  Difference(){};
+  Difference();
   
   // Copy constructor
   Difference(const Difference& copy_from_me)
@@ -37,8 +31,26 @@ public:
     
   };
   
-  virtual float Compute(PixelType a, PixelType b) = 0;
   
+  void SetImage(ImageType::Pointer);
+  
+  void ComputeMinAndMaxInAllChannels();
+  PixelType MinimumOfChannels;
+  PixelType MaximumOfChannels;
+  
+  void WriteImages();
+  
+  void Compute();
+  virtual float GetDifference(itk::Index<2>) = 0;
+  //virtual float GetAverageDifference() = 0;
+  float GetAverageDifference();
+  
+  FloatScalarImageType::Pointer NormalizedDepthDifferenceImage;
+  FloatScalarImageType::Pointer NormalizedColorDifferenceImage;
+  
+  void CreateNormalizedDepthGradientMagnitude();
+  void CreateNormalizedColorGradientMagnitude();
+    
   float AverageColorDifference;
   float MedianColorDifference;
   float MinColorDifference;
@@ -49,8 +61,13 @@ public:
   float MinDepthDifference;
   float MaxDepthDifference;
   
+  float AverageDifference;
+  
 protected:
-
+  void CreateRGBImage(Vector3ImageType::Pointer image);
+  void CreateDepthImage(FloatScalarImageType::Pointer image);
+  
+  ImageType::Pointer Image;
 };
 
 class DifferenceDepth : public Difference
@@ -62,16 +79,9 @@ public:
   // Default constructor
   DifferenceDepth(){}
   
-  float Compute(PixelType a, PixelType b)
+  float GetDifference(itk::Index<2> pixel)
   {
-    // Compute the Euclidean distance between N dimensional pixels
-    //float difference = pow(a[3] - b[3],2);
-    //return sqrt(difference);
-
-    float difference = fabs(a[3] - b[3]);
-    //difference = std::min(difference, 10.0f); // Invalid returns sometimes cause erroneously high depth differences, so clamp them to [0,10]
-      
-    return difference;
+    return this->NormalizedDepthDifferenceImage->GetPixel(pixel);
   }
 };
 
@@ -85,179 +95,9 @@ public:
   // Default constructor
   DifferenceColor(){}
   
-  float Compute(PixelType a, PixelType b)
+  float GetDifference(itk::Index<2> pixel)
   {
-    float difference = 0;
-
-    // Compute the Euclidean RGB distance between N dimensional pixels
-    //for(unsigned int i = 0; i < std::min(this->Image->GetNumberOfComponentsPerPixel(), 3u); i++)
-    for(unsigned int i = 0; i < 3u; i++)
-      {
-      difference += fabs(a[i] - b[i]);
-      }
-
-    return difference;
-  }
-};
-
-
-class DifferenceColorDataNormalized : public Difference
-{
-public:
-  // Copy constructor
-  DifferenceColorDataNormalized(const Difference& input) : Difference(input) {}
-  
-  // Default constructor
-  DifferenceColorDataNormalized(){}
-  
-  float Compute(PixelType a, PixelType b)
-  {
-    DifferenceColor differenceFunction;
-    float difference = differenceFunction.Compute(a,b);
-    float normalizedDifference = (difference - this->MinColorDifference)/(this->MaxColorDifference - this->MinColorDifference);
-    return normalizedDifference;
-  }
-};
-
-class DifferenceColorAbsoluteNormalized : public Difference
-{
-public:
-  // Copy constructor
-  DifferenceColorAbsoluteNormalized(const Difference& input) : Difference(input) {}
-  
-  // Default constructor
-  DifferenceColorAbsoluteNormalized(){}
-  
-  float Compute(PixelType a, PixelType b)
-  {
-    DifferenceColor differenceFunction;
-    float difference = differenceFunction.Compute(a,b);
-    float normalizedDifference = difference/(255.*3.);
-    return normalizedDifference;
-  }
-};
-
-class DifferenceDepthDataNormalized : public Difference
-{
-public:
-  // Copy constructor
-  DifferenceDepthDataNormalized(const Difference& input) : Difference(input) {}
-  
-  // Default constructor
-  DifferenceDepthDataNormalized(){}
-  
-  float Compute(PixelType a, PixelType b)
-  {
-    DifferenceDepth differenceFunction;
-    float difference = differenceFunction.Compute(a,b);
-    
-    float normalizedDifference = (difference - this->MinDepthDifference)/(this->MaxDepthDifference - this->MinDepthDifference);
-
-    return normalizedDifference;
-  }
-};
-
-class DifferenceDepthAbsoluteNormalized : public Difference
-{
-public:
-  // Copy constructor
-  DifferenceDepthAbsoluteNormalized(const Difference& input) : Difference(input) {}
-  
-  // Default constructor
-  DifferenceDepthAbsoluteNormalized(){}
-  
-  float Compute(PixelType a, PixelType b)
-  {
-    DifferenceDepth differenceFunction;
-    float difference = differenceFunction.Compute(a,b);
-    
-    float normalizedDifference = difference/10.0; // Normalize to the arbitrarily decided maximum possible depth difference
-    
-    return normalizedDifference;
-  }
-};
-
-class HSVColorDifference : public Difference
-{
-public:
-  // Copy constructor
-  HSVColorDifference(const Difference& input) : Difference(input) {}
-  
-  // Default constructor
-  HSVColorDifference(){}
-  
-  float Compute(PixelType a, PixelType b)
-  {
-    float rgbA[3];
-    rgbA[0] = a[0];
-    rgbA[1] = a[1];
-    rgbA[2] = a[2];
-
-    float rgbB[3];
-    rgbB[0] = b[0];
-    rgbB[1] = b[1];
-    rgbB[2] = b[2];
-
-    // Convert to HSV
-    float hsvA[3];
-    vtkMath::RGBToHSV(rgbA, hsvA);
-    
-    float hsvB[3];
-    vtkMath::RGBToHSV(rgbB, hsvB);
-    
-    float difference = 0.0;
-    // Compute the HSV Euclidean distance
-    for(unsigned int i = 0; i < 3u; i++)
-      {
-      difference += fabs(hsvA[i] - hsvB[i]);
-      }
-    
-    // Compute the hue Euclidean distance
-    //difference += fabs(hsvA[0] - hsvB[0]);
-    
-    return difference;
-  }
-};
-
-class CIELABColorDifference : public Difference
-{
-public:
-  // Copy constructor
-  CIELABColorDifference(const Difference& input) : Difference(input) {}
-  
-  // Default constructor
-  CIELABColorDifference(){}
-  
-  float Compute(PixelType a, PixelType b)
-  {
-    double rgbA[3];
-    rgbA[0] = a[0];
-    rgbA[1] = a[1];
-    rgbA[2] = a[2];
-
-    double rgbB[3];
-    rgbB[0] = b[0];
-    rgbB[1] = b[1];
-    rgbB[2] = b[2];
-
-    // Convert to CIELAB
-    double labA[3];
-    vtkMath::RGBToLab(rgbA, labA);
-    
-    double labB[3];
-    vtkMath::RGBToLab(rgbB, labB);
-    
-    float difference = 0.0;
-    //Compute CIELAB Euclidean distance
-    for(unsigned int i = 0; i < 3u; i++)
-      {
-      difference += fabs(labA[i] - labB[i]);
-      }
-    
-    // The a* and b* (elements 1 and 2) encode color. Element 0 (not used here), L*, encodes lightness.
-    //difference = fabs(labA[1] - labB[1]) + fabs(labA[2] - labB[2]);
-    
-    return difference;
+    return this->NormalizedColorDifferenceImage->GetPixel(pixel);
   }
 };
 
@@ -271,19 +111,15 @@ public:
   // Default constructor
   DifferenceMaxOfColorOrDepth(){}
   
-  float Compute(PixelType a, PixelType b)
+  float GetDifference(itk::Index<2> pixel)
   {
-    DifferenceColorDataNormalized differenceColorDataNormalized;
-    float colorDifference = differenceColorDataNormalized.Compute(a,b);
-    
-    DifferenceDepthDataNormalized differenceDepthDataNormalized;
-    float depthDifference = differenceDepthDataNormalized.Compute(a,b);
-
-    return std::max(colorDifference, depthDifference);
+    return std::max(this->NormalizedColorDifferenceImage->GetPixel(pixel), this->NormalizedDepthDifferenceImage->GetPixel(pixel));
   }
+  
+  
 };
   
-  
+#if 0
 class DifferenceDepthWeightedByColor : public Difference
 {
 public:
@@ -305,5 +141,27 @@ public:
     return std::max(depthDifference, colorDifference) + (depthDifference + colorDifference)/2.0;
   }
 };
+
+class DifferenceEuclidean : public Difference
+{
+public:
+  // Copy constructor
+  DifferenceEuclidean(const Difference& input) : Difference(input) {}
+  
+  // Default constructor
+  DifferenceEuclidean(){}
+
+  float Compute(PixelType a, PixelType b)
+  {
+    float difference = 0.0;
+    for(unsigned int i = 0; i < 3u; i++)
+      {
+      difference += pow(a[i] - b[i],2);
+      }
+    return sqrt(difference);
+  }
+
+};
+#endif
 
 #endif

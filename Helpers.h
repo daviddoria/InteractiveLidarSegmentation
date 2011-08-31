@@ -17,6 +17,9 @@ namespace Helpers
 
 void MaskImage(vtkSmartPointer<vtkImageData> VTKImage, vtkSmartPointer<vtkImageData> VTKSegmentMask, vtkSmartPointer<vtkImageData> VTKMaskedImage);
 
+// Determine if a number is NaN
+bool IsNaN(const double a);
+
 // Mark each pixel at the specified 'indices' as a non-zero pixel in 'image'
 void IndicesToBinaryImage(std::vector<itk::Index<2> > indices, UnsignedCharScalarImageType::Pointer image);
 
@@ -28,6 +31,12 @@ void ITKImagetoVTKRGBImage(ImageType::Pointer image, vtkImageData* outputImage);
 void ITKImagetoVTKMagnitudeImage(ImageType::Pointer image, vtkImageData* outputImage);
 
 void ITKScalarImagetoVTKImage(MaskImageType::Pointer image, vtkImageData* outputImage);
+
+template<typename T>
+T VectorMedian(std::vector<T> &v);
+
+template<typename T>
+T VectorAverage(std::vector<T> &v);
 
 }
 

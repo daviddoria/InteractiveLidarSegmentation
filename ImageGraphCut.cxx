@@ -18,9 +18,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "ImageGraphCut.h"
 
 // ITK
+#include "itkBilateralImageFilter.h"
+#include "itkGradientMagnitudeImageFilter.h"
 #include "itkImageRegionIterator.h"
-#include "itkShapedNeighborhoodIterator.h"
 #include "itkMaskImageFilter.h"
+#include "itkMaximumImageFilter.h"
+#include "itkMinimumMaximumImageCalculator.h"
+#include "itkRescaleIntensityImageFilter.h"
+#include "itkShapedNeighborhoodIterator.h"
+#include "itkVectorGradientMagnitudeImageFilter.h"
+#include "itkVectorIndexSelectionCastImageFilter.h"
 
 // STL
 #include <algorithm>
@@ -58,6 +65,15 @@ ImageGraphCut::ImageGraphCut()
   this->MedianColorDifference = 0.0;
   this->MinColorDifference = 0.0;
   this->MaxColorDifference = 0.0;
+  
+  this->Debug = false;
+  
+  this->IncludeDepthInHistogram = false;
+}
+
+ImageType::Pointer ImageGraphCut::GetImage()
+{
+  return this->Image;
 }
 
 void ImageGraphCut::SetImage(ImageType::Pointer image)
@@ -84,13 +100,7 @@ void ImageGraphCut::SetImage(ImageType::Pointer image)
   this->ForegroundHistogram = NULL;
   this->BackgroundHistogram = NULL;
 
-  this->ForegroundSample = SampleType::New();
-  this->BackgroundSample = SampleType::New();
-
-  this->ForegroundHistogramFilter = SampleToHistogramFilterType::New();
-  this->BackgroundHistogramFilter = SampleToHistogramFilterType::New();
   
-  this->CameraNoise = 0.0;
 }
 
 ImageType::Pointer ImageGraphCut::GetMaskedOutput()
@@ -186,123 +196,114 @@ void ImageGraphCut::PerformSegmentation()
     segmentMaskImageIterator.Set(empty);
     ++segmentMaskImageIterator;
     }
-  
-  // Estimate the "camera noise"
-  this->CameraNoise = this->ComputeNoise();
 
-  this->ComputeGlobalStatistics();
-  //this->WriteEdges("Edges.vtp");
+  if(this->Debug)
+    {
+    this->DifferenceFunction->WriteImages();
+    }
   this->CreateGraph();
   this->CutGraph();
 }
 
-void ImageGraphCut::CreateSamples()
+void ImageGraphCut::CreateHistogram(unsigned int numberOfComponents)
 {
   // This function creates ITK samples from the scribbled pixels and then computes the foreground and background histograms
+  std::cout << "CreateHistogram()" << std::endl;
+  
+  // Typedefs
+  typedef itk::Statistics::ListSample<PixelType> SampleType;
+  typedef itk::Statistics::SampleToHistogramFilter<SampleType, HistogramType> SampleToHistogramFilterType;
 
-  // We want the histogram bins to take values from 0 to 255 in all dimensions
-  HistogramType::MeasurementVectorType binMinimum(this->Image->GetNumberOfComponentsPerPixel());
-  HistogramType::MeasurementVectorType binMaximum(this->Image->GetNumberOfComponentsPerPixel());
-  for(unsigned int i = 0; i < this->Image->GetNumberOfComponentsPerPixel(); i++)
+  SampleToHistogramFilterType::Pointer foregroundHistogramFilter = SampleToHistogramFilterType::New();
+  SampleToHistogramFilterType::Pointer backgroundHistogramFilter = SampleToHistogramFilterType::New();
+  SampleType::Pointer foregroundSample = SampleType::New();
+  SampleType::Pointer backgroundSample = SampleType::New();
+  
+  // We want the histogram bins to take values from 0 to 1 in all dimensions
+  HistogramType::MeasurementVectorType binMinimum(numberOfComponents);
+  HistogramType::MeasurementVectorType binMaximum(numberOfComponents);
+  for(unsigned int i = 0; i < numberOfComponents; i++)
     {
     binMinimum[i] = 0;
-    binMaximum[i] = 255;
+    binMaximum[i] = 1;
     }
 
   // Setup the histogram size
-  //std::cout << "Image components per pixel: " << this->Image->GetNumberOfComponentsPerPixel() << std::endl;
-  SampleToHistogramFilterType::HistogramSizeType histogramSize(this->Image->GetNumberOfComponentsPerPixel());
+  SampleToHistogramFilterType::HistogramSizeType histogramSize(numberOfComponents);
   histogramSize.Fill(this->NumberOfHistogramBins);
 
   // Create foreground samples and histogram
-  this->ForegroundSample->Clear();
-  this->ForegroundSample->SetMeasurementVectorSize(this->Image->GetNumberOfComponentsPerPixel());
+  foregroundSample->Clear();
+  foregroundSample->SetMeasurementVectorSize(numberOfComponents);
   //std::cout << "Measurement vector size: " << this->ForegroundSample->GetMeasurementVectorSize() << std::endl;
   //std::cout << "Pixel size: " << this->Image->GetPixel(this->Sources[0]).GetNumberOfElements() << std::endl;
   
   for(unsigned int i = 0; i < this->Sources.size(); i++)
     {
-    this->ForegroundSample->PushBack(this->Image->GetPixel(this->Sources[i]));
+    if(!this->Image->GetPixel(this->Sources[i])[4]) // Don't include invalid pixels in the histogram
+      {
+      continue;
+      }
+      
+    itk::VariableLengthVector<float> normalizedPixel;
+    PixelType pixel = this->Image->GetPixel(this->Sources[i]);
+    normalizedPixel.SetSize(numberOfComponents);
+    for(unsigned int component = 0; component < numberOfComponents; component++)
+      {
+      normalizedPixel[component] = (pixel[component] - this->DifferenceFunction->MinimumOfChannels[component])/(this->DifferenceFunction->MaximumOfChannels[component] - this->DifferenceFunction->MinimumOfChannels[component]);
+      }
+    
+    foregroundSample->PushBack(normalizedPixel);
     }
 
-  this->ForegroundHistogramFilter->SetHistogramSize(histogramSize);
-  this->ForegroundHistogramFilter->SetHistogramBinMinimum(binMinimum);
-  this->ForegroundHistogramFilter->SetHistogramBinMaximum(binMaximum);
-  this->ForegroundHistogramFilter->SetAutoMinimumMaximum(false);
-  this->ForegroundHistogramFilter->SetInput(this->ForegroundSample);
-  this->ForegroundHistogramFilter->Modified();
-  this->ForegroundHistogramFilter->Update();
+  foregroundHistogramFilter->SetHistogramSize(histogramSize);
+  foregroundHistogramFilter->SetHistogramBinMinimum(binMinimum);
+  foregroundHistogramFilter->SetHistogramBinMaximum(binMaximum);
+  foregroundHistogramFilter->SetAutoMinimumMaximum(false);
+  foregroundHistogramFilter->SetInput(foregroundSample);
+  foregroundHistogramFilter->Modified();
+  foregroundHistogramFilter->Update();
+  foregroundHistogramFilter->Register();
 
-  this->ForegroundHistogram = this->ForegroundHistogramFilter->GetOutput();
+  this->ForegroundHistogram = foregroundHistogramFilter->GetOutput();
+  //this->ForegroundHistogram->
 
   // Create background samples and histogram
-  this->BackgroundSample->Clear();
-  this->BackgroundSample->SetMeasurementVectorSize(this->Image->GetNumberOfComponentsPerPixel());
+  backgroundSample->Clear();
+  backgroundSample->SetMeasurementVectorSize(numberOfComponents);
   for(unsigned int i = 0; i < this->Sinks.size(); i++)
     {
-    this->BackgroundSample->PushBack(this->Image->GetPixel(this->Sinks[i]));
+    if(!this->Image->GetPixel(this->Sinks[i])[4]) // Don't include invalid pixels in the histogram
+      {
+      continue;
+      }
+    itk::VariableLengthVector<float> normalizedPixel;
+    PixelType pixel = this->Image->GetPixel(this->Sinks[i]);
+    normalizedPixel.SetSize(numberOfComponents);
+    for(unsigned int component = 0; component < numberOfComponents; component++)
+      {
+      normalizedPixel[component] = (pixel[component] - this->DifferenceFunction->MinimumOfChannels[component])/(this->DifferenceFunction->MaximumOfChannels[component] - this->DifferenceFunction->MinimumOfChannels[component]);
+      }
+    backgroundSample->PushBack(normalizedPixel);
     }
 
-  this->BackgroundHistogramFilter->SetHistogramSize(histogramSize);
-  this->BackgroundHistogramFilter->SetHistogramBinMinimum(binMinimum);
-  this->BackgroundHistogramFilter->SetHistogramBinMaximum(binMaximum);
-  this->BackgroundHistogramFilter->SetAutoMinimumMaximum(false);
-  this->BackgroundHistogramFilter->SetInput(this->BackgroundSample);
-  this->BackgroundHistogramFilter->Modified();
-  this->BackgroundHistogramFilter->Update();
+  backgroundHistogramFilter->SetHistogramSize(histogramSize);
+  backgroundHistogramFilter->SetHistogramBinMinimum(binMinimum);
+  backgroundHistogramFilter->SetHistogramBinMaximum(binMaximum);
+  backgroundHistogramFilter->SetAutoMinimumMaximum(false);
+  backgroundHistogramFilter->SetInput(backgroundSample);
+  backgroundHistogramFilter->Modified();
+  backgroundHistogramFilter->Update();
+  backgroundHistogramFilter->Register();
 
-  this->BackgroundHistogram = BackgroundHistogramFilter->GetOutput();
+  this->BackgroundHistogram = backgroundHistogramFilter->GetOutput();
 
 }
 
-void ImageGraphCut::ComputeGlobalStatistics()
+
+void ImageGraphCut::CreateGraphNodes()
 {
-  ComputeAllColorDifferences();
   
-  // Find min and max
-  std::sort(this->AllColorDifferences.begin(), this->AllColorDifferences.end());
-  this->MinColorDifference = this->AllColorDifferences[0];
-  std::cout << "MinColorDifference: " << this->MinColorDifference << std::endl;
-  this->MaxColorDifference = this->AllColorDifferences[this->AllColorDifferences.size()-1];
-  std::cout << "MaxColorDifference: " << this->MaxColorDifference << std::endl;
-  
-  ComputeAllDepthDifferences();
-  
-  // Find min and max
-  std::sort(this->AllDepthDifferences.begin(), this->AllDepthDifferences.end());
-  this->MinDepthDifference = this->AllDepthDifferences[0];
-  std::cout << "MinDepthDifference: " << this->MinDepthDifference << std::endl;
-  this->MaxDepthDifference = this->AllDepthDifferences[this->AllDepthDifferences.size()-1];
-  std::cout << "MaxDepthDifference: " << this->MaxDepthDifference << std::endl;
-  
-  // Compute averages
-  this->AverageColorDifference = ComputeAverageColorDifference();
-  std::cout << "averageColorDifference: " << this->AverageColorDifference << std::endl;
-
-  this->AverageDepthDifference = ComputeAverageDepthDifference();
-  std::cout << "averageDepthDifference: " << this->AverageDepthDifference << std::endl;
-
-  // Compute medians
-  this->MedianColorDifference = ComputeMedianColorDifference();
-  std::cout << "medianColorDifference: " << this->MedianColorDifference << std::endl;
-
-  this->MedianDepthDifference = ComputeMedianDepthDifference();
-  std::cout << "medianDepthDifference: " << this->MedianDepthDifference << std::endl;
-    
-  this->DifferenceFunction->AverageColorDifference = AverageColorDifference;
-  this->DifferenceFunction->MinColorDifference = MinColorDifference;
-  this->DifferenceFunction->MaxColorDifference = MaxColorDifference;
-  this->DifferenceFunction->MedianColorDifference = MedianColorDifference;
-  
-  this->DifferenceFunction->AverageDepthDifference = AverageDepthDifference;
-  this->DifferenceFunction->MinDepthDifference = MinDepthDifference;
-  this->DifferenceFunction->MaxDepthDifference = MaxDepthDifference;
-  this->DifferenceFunction->MedianDepthDifference = MedianDepthDifference;
-  
-}
-
-void ImageGraphCut::CreateGraph()
-{
   // Form the graph
   this->Graph = new GraphType;
 
@@ -315,8 +316,13 @@ void ImageGraphCut::CreateGraph()
     nodeImageIterator.Set(this->Graph->add_node());
     ++nodeImageIterator;
     }
+}
+
+void ImageGraphCut::CreateNWeights()
+{
   
   ////////// Create n-edges and set n-edge weights (links between image nodes) //////////
+  // We use a neighborhood iterator here even though we are looking only at a single pixel index in all images on each iteration because we use the neighborhood to determine edge validity.
   std::vector<NeighborhoodIteratorType::OffsetType> neighbors;
   NeighborhoodIteratorType iterator(Get1x1Radius(), this->Image, this->Image->GetLargestPossibleRegion());
   ConstructNeighborhoodIterator(&iterator, neighbors);
@@ -326,7 +332,8 @@ void ImageGraphCut::CreateGraph()
   // - the current pixel and the pixel to the right of it
   // - the current pixel and the pixel to the bottom-right of it
   // This prevents duplicate edges (i.e. we cannot add an edge to all 8-connected neighbors of every pixel or almost every edge would be duplicated.
-
+  std::cout << "Setting N-Weights..." << std::endl;
+  
   for(iterator.GoToBegin(); !iterator.IsAtEnd(); ++iterator)
     {
     PixelType centerPixel = iterator.GetCenterPixel();
@@ -335,7 +342,7 @@ void ImageGraphCut::CreateGraph()
       {
       //float weight = std::numeric_limits<float>::max(); // This will be the assigned weight if the edge is not computed (if one or both of the pixels is invalid)
       float weight = 0.0;
-      bool inbounds;
+      bool inbounds = false;
       ImageType::PixelType neighborPixel = iterator.GetPixel(neighbors[i], inbounds);
 
       // If the current neighbor is outside the image, skip it
@@ -347,39 +354,50 @@ void ImageGraphCut::CreateGraph()
       // If pixel or its neighbor is not valid, skip this edge.
       if(neighborPixel[4] && centerPixel[4]) // validity channel
 	{
-	//PixelType neighborPixel = iterator.GetPixel(neighbors[i]);
-
-	float pixelDifference = this->DifferenceFunction->Compute(centerPixel, neighborPixel);
+	/*
+	float depthDifference = depthGradientMagnitudeImage->GetPixel(iterator.GetIndex());
+	//float colorDifference = rgbGradientMagnitudeImage->GetPixel(iterator.GetIndex() + neighbors[i]);
+	float colorDifference = rgbGradientMagnitudeImage->GetPixel(iterator.GetIndex());
+	//float pixelDifference = std::max(depthDifference, colorDifference);
+	float pixelDifference = std::max(depthDifference, colorDifference) + (depthDifference + colorDifference)/2.0;
+	*/
 	
-	if(pixelDifference < 0)
-	  {
-	  std::cerr << "pixelDifference = " << pixelDifference << " but cannot be negative!" << std::endl;
-	  exit(-1);
-	  }
+	float pixelDifference = this->DifferenceFunction->GetDifference(iterator.GetIndex());
 	  
 	// Compute the edge weight
 	weight = ComputeEdgeWeight(pixelDifference);
-	//assert(weight >= 0);
-	/*
-	if(weight < 0)
-	  {
-	  std::cerr << "pixelDifference = " << pixelDifference << " so then weight = " << weight << std::endl;
-	  exit(-1);
-	  }
-	*/
+
 	}// end if current and neighbor are valid
       // Add the edge to the graph
       void* node1 = this->NodeImage->GetPixel(iterator.GetIndex());
       void* node2 = this->NodeImage->GetPixel(iterator.GetIndex(neighbors[i]));
       this->Graph->add_edge(node1, node2, weight, weight); // This is an undirected graph so we create a bidirectional edge with both weights set to 'weight'
+      //std::cout << "Set n-edge weight to " << weight << std::endl;
       } // end loop over neighbors
     } // end iteration over entire image
 
+}
+
+void ImageGraphCut::CreateTWeights()
+{
+  
   ////////// Add t-edges and set t-edge weights (links from image nodes to virtual background and virtual foreground node) //////////
 
   // Compute the histograms of the selected foreground and background pixels
-  CreateSamples();
-
+  //
+  //CreateFullHistogramSamples();
+  unsigned int numberOfHistogramComponents = 0;
+  if(this->IncludeDepthInHistogram)
+    {
+    numberOfHistogramComponents = 4;
+    }
+  else
+    {
+    numberOfHistogramComponents = 3;
+    }
+    
+  CreateHistogram(numberOfHistogramComponents);
+  
   itk::ImageRegionIterator<ImageType> imageIterator(this->Image, this->Image->GetLargestPossibleRegion());
   itk::ImageRegionIterator<NodeImageType> nodeIterator(this->NodeImage, this->NodeImage->GetLargestPossibleRegion());
   imageIterator.GoToBegin();
@@ -390,6 +408,14 @@ void ImageGraphCut::CreateGraph()
   // For empty histogram bins we use tinyValue instead of 0.
   float tinyValue = 1e-10;
 
+  std::cout << "Setting T-Weights..." << std::endl;
+  
+  // These are only for debuging/tracking
+  std::vector<float> sinkTWeights;
+  std::vector<float> sourceTWeights;
+  std::vector<float> sourceHistogramValues;
+  std::vector<float> sinkHistogramValues;
+  
   // Use the colors only for the t-weights
   while(!imageIterator.IsAtEnd())
     {
@@ -399,16 +425,15 @@ void ImageGraphCut::CreateGraph()
     float sinkHistogramValue = tinyValue;
     float sourceHistogramValue = tinyValue;
       
-    //if(pixel[4])
-    if(1)
+    if(pixel[4])
       {
       //std::cout << "Pixels have size: " << pixel.Size() << std::endl;
-      unsigned int measurementVectorSize = std::min(pixel.Size(), 3u);
       
-      HistogramType::MeasurementVectorType measurementVector(measurementVectorSize);
-      for(unsigned int i = 0; i < measurementVectorSize; i++)
+      HistogramType::MeasurementVectorType measurementVector(numberOfHistogramComponents);
+      for(unsigned int i = 0; i < numberOfHistogramComponents; i++)
 	{
-	measurementVector[i] = pixel[i];
+	//measurementVector[i] = pixel[i];
+	measurementVector[i] = (pixel[i] - this->DifferenceFunction->MinimumOfChannels[i])/(this->DifferenceFunction->MaximumOfChannels[i] - this->DifferenceFunction->MinimumOfChannels[i]);
 	}
 
       sinkHistogramValue = this->BackgroundHistogram->GetFrequency(this->BackgroundHistogram->GetIndex(measurementVector));
@@ -426,139 +451,73 @@ void ImageGraphCut::CreateGraph()
 	{
 	sourceHistogramValue = tinyValue;
 	}
+	
+      //std::cout << "Setting background weight to: " << -this->Lambda*log(sinkHistogramValue) << std::endl;
+      //std::cout << "Setting foreground weight to: " << -this->Lambda*log(sourceHistogramValue) << std::endl;
+      
+      sinkHistogramValues.push_back(sinkHistogramValue);
+      sourceHistogramValues.push_back(sourceHistogramValue);
+      sinkTWeights.push_back(-this->Lambda*log(sinkHistogramValue));
+      sourceTWeights.push_back(-this->Lambda*log(sourceHistogramValue));
+      
+      // Add the edge to the graph and set its weight
+      this->Graph->add_tweights(nodeIterator.Get(),
+                              -this->Lambda*log(sinkHistogramValue),
+                              -this->Lambda*log(sourceHistogramValue)); // log() is the natural log
       }
     else
       {
+      this->Graph->add_tweights(nodeIterator.Get(), 0, 0);
       }
 
-    // Add the edge to the graph and set its weight
-    this->Graph->add_tweights(nodeIterator.Get(),
-                              -this->Lambda*log(sinkHistogramValue),
-                              -this->Lambda*log(sourceHistogramValue)); // log() is the natural log
     ++imageIterator;
     ++nodeIterator;
     }
+    
+  std::cout << "Average sinkHistogramValue: " << Helpers::VectorAverage<float>(sinkHistogramValues) << std::endl;
+  std::cout << "Average sourceHistogramValue: " << Helpers::VectorAverage<float>(sourceHistogramValues) << std::endl;
+  
+  std::cout << "Max sinkHistogramValue: " << *(std::max_element(sinkHistogramValues.begin(), sinkHistogramValues.end())) << std::endl;
+  std::cout << "Max sourceHistogramValue: " << *(std::max_element(sourceHistogramValues.begin(), sourceHistogramValues.end())) << std::endl;
+  
+  std::cout << "Average sourceTWeights: " << Helpers::VectorAverage<float>(sourceTWeights) << std::endl;
+  std::cout << "Average sinkTWeights: " << Helpers::VectorAverage<float>(sinkTWeights) << std::endl;
+  
+  std::cout << "Max sourceTWeights: " << *(std::max_element(sourceTWeights.begin(), sourceTWeights.end())) << std::endl;
+  std::cout << "Max sinkTWeights: " << *(std::max_element(sinkTWeights.begin(), sinkTWeights.end())) << std::endl;
+}
 
+void ImageGraphCut::CreateGraph()
+{
+  if(this->Debug)
+    {
+    std::cout << "CreateGraph()" << std::endl;
+    }
+    
+  CreateGraphNodes();
+
+  CreateNWeights();
+  
+  CreateTWeights();
+  
   // Set very high source weights for the pixels which were selected as foreground by the user.
   // The syntax is add_tweights(location, SourceLinkWeight, SinkLinkWeight).
-  // We want source pixels to be strongly linked to the imaginary source node (so the link won't be cut) and weakly linked to the sink node (weight 0, so it will certainly be cut if necessary. The reverse holds for sink pixels.
+  // We want source pixels to be strongly linked to the imaginary source node (so the link won't be cut) and weakly linked
+  // to the sink node (weight 0, so it will certainly be cut if necessary. The reverse holds for sink pixels.
   for(unsigned int i = 0; i < this->Sources.size(); i++)
     {
-    this->Graph->add_tweights(this->NodeImage->GetPixel(this->Sources[i]),this->Lambda * std::numeric_limits<float>::max(),0);
+    //this->Graph->add_tweights(this->NodeImage->GetPixel(this->Sources[i]),this->Lambda * std::numeric_limits<float>::max(),0);
+    this->Graph->add_tweights(this->NodeImage->GetPixel(this->Sources[i]), std::numeric_limits<float>::max(),0);
     }
 
   // Set very high sink weights for the pixels which were selected as background by the user
   for(unsigned int i = 0; i < this->Sinks.size(); i++)
     {
-    this->Graph->add_tweights(this->NodeImage->GetPixel(this->Sinks[i]),0,this->Lambda * std::numeric_limits<float>::max());
+    //this->Graph->add_tweights(this->NodeImage->GetPixel(this->Sinks[i]),0,this->Lambda * std::numeric_limits<float>::max());
+    this->Graph->add_tweights(this->NodeImage->GetPixel(this->Sinks[i]),0, std::numeric_limits<float>::max());
     }
 }
 
-/*
-float ImageGraphCut::PixelDifference(PixelType a, PixelType b)
-{
-  // Compute the Euclidean distance between N dimensional pixels
-  float difference = 0;
-
-  if(this->Image->GetNumberOfComponentsPerPixel() > 3)
-    {
-    for(unsigned int i = 0; i < 3; i++)
-      {
-      difference += (this->RGBWeight / 3.) * pow(a[i] - b[i],2);
-      }
-    for(unsigned int i = 3; i < this->Image->GetNumberOfComponentsPerPixel(); i++)
-      {
-      difference += (1 - this->RGBWeight) / (this->Image->GetNumberOfComponentsPerPixel() - 3.) * pow(a[i] - b[i],2);
-      }
-    }
-  else // image is RGB or less (grayscale)
-    {
-    for(unsigned int i = 0; i < this->Image->GetNumberOfComponentsPerPixel(); i++)
-      {
-      difference += pow(a[i] - b[i],2);
-      }
-    }
-  return sqrt(difference);
-}
-*/
-
-
-/*
-float ImageGraphCut::PixelDifferenceUseColorAtSmallDepths(PixelType a, PixelType b)
-{
-  //float colorDifference = AbsoluteNormalizedPixelColorDifference(a,b);
-  float colorDifference = DataNormalizedPixelColorDifference(a,b);
-  float depthDifference = DataNormalizedPixelDepthDifference(a,b); // using normalized values is much better because then the main graph cut lambda does not change wildly from data set to data set
-  //float depthDifference = PixelDepthDifference(a,b);
-
-  if(depthDifference > 0.4)
-    {
-    return depthDifference;
-    }
-  else
-    {
-    //return depthDifference * (1.0 / colorDifference);
-    return depthDifference *  colorDifference;
-    }
-    return depthDifference;
-    
-  return depthDifference *  colorDifference;
-}
-*/
-
-
-double ImageGraphCut::ComputeNoise()
-{
-  // Compute an estimate of the "camera noise". This is used in the N-weight function.
-
-  std::vector<NeighborhoodIteratorType::OffsetType> neighbors;
-  NeighborhoodIteratorType iterator(Get1x1Radius(), this->Image, this->Image->GetLargestPossibleRegion());
-  ConstructNeighborhoodIterator(&iterator, neighbors);
-
-  double sigma = 0.0;
-  int numberOfEdges = 0;
-
-  // Traverse the image collecting the differences between neighboring pixel intensities
-  for(iterator.GoToBegin(); !iterator.IsAtEnd(); ++iterator)
-    {
-    PixelType centerPixel = iterator.GetCenterPixel();
-    if(!centerPixel[4])
-      {
-      continue;
-      }
-    for(unsigned int i = 0; i < neighbors.size(); i++)
-      {
-      bool inbounds;
-      iterator.GetPixel(neighbors[i], inbounds);
-      if(!inbounds)
-        {
-        continue;
-        }
-      PixelType neighborPixel = iterator.GetPixel(neighbors[i]);
-      if(!neighborPixel[4])
-	{
-	continue;
-	}
-      //DifferenceColor differenceColor(*(this->DifferenceFunction));
-      DifferenceColorDataNormalized differenceColor(*(this->DifferenceFunction));
-      float colorDifference = differenceColor.Compute(centerPixel, neighborPixel);
-      sigma += colorDifference;
-      numberOfEdges++;
-      }
-
-    }
-
-  // Normalize
-  sigma /= static_cast<double>(numberOfEdges);
-
-  return sigma;
-}
-
-
-void ImageGraphCut::SetRGBWeight(float weight)
-{
-  this->RGBWeight = weight;
-}
 
 std::vector<itk::Index<2> > ImageGraphCut::GetSources()
 {
@@ -583,11 +542,6 @@ MaskImageType::Pointer ImageGraphCut::GetSegmentMask()
 std::vector<itk::Index<2> > ImageGraphCut::GetSinks()
 {
   return this->Sinks;
-}
-
-bool ImageGraphCut::IsNaN(const double a)
-{
-  return a != a;
 }
 
 void ImageGraphCut::SetSources(vtkPolyData* sources)
@@ -646,120 +600,6 @@ void ImageGraphCut::SetSinks(std::vector<itk::Index<2> > sinks)
   this->Sinks = sinks;
 }
 
-void ImageGraphCut::ComputeAllColorDifferences()
-{
-  this->AllColorDifferences.clear();
-  
-  std::vector<NeighborhoodIteratorType::OffsetType> neighbors;
-  NeighborhoodIteratorType iterator(Get1x1Radius(), this->Image, this->Image->GetLargestPossibleRegion());
-  ConstructNeighborhoodIterator(&iterator, neighbors);
-
-  for(iterator.GoToBegin(); !iterator.IsAtEnd(); ++iterator)
-    {
-    PixelType centerPixel = iterator.GetCenterPixel();
-    // If pixel is not valid, skip this edge.
-    if(!centerPixel[4]) // validity channel
-      {
-      continue;
-      }
-    for(unsigned int i = 0; i < neighbors.size(); i++)
-      {
-      bool inbounds;
-      ImageType::PixelType neighborPixel = iterator.GetPixel(neighbors[i], inbounds);
-      
-      // If the current neighbor is outside the image, skip it
-      if(!inbounds)
-        {
-        continue;
-        }
-        
-      // If neighbor is not valid, skip this edge.
-      if(!neighborPixel[4]) // validity channel
-	{
-	continue;
-	}
-
-      DifferenceColor differenceColor;
-      float pixelColorDifference = differenceColor.Compute(centerPixel, neighborPixel);
-      this->AllColorDifferences.push_back(pixelColorDifference);
-      }
-    }
-
-}
-
-float ImageGraphCut::ComputeMedianColorDifference()
-{
-  float medianColorDifference = Helpers::VectorMedian<float>(this->AllColorDifferences);
-
-  return medianColorDifference;
-}
-
-void ImageGraphCut::ComputeAllDepthDifferences()
-{
-  this->AllDepthDifferences.clear();
-  
-    std::vector<NeighborhoodIteratorType::OffsetType> neighbors;
-  NeighborhoodIteratorType iterator(Get1x1Radius(), this->Image, this->Image->GetLargestPossibleRegion());
-  ConstructNeighborhoodIterator(&iterator, neighbors);
-
-  std::vector<float> differences;
-
-  for(iterator.GoToBegin(); !iterator.IsAtEnd(); ++iterator)
-    {
-    PixelType centerPixel = iterator.GetCenterPixel();
-    // If pixel is not valid, skip this edge.
-    if(!centerPixel[4]) // validity channel
-      {
-      continue;
-      }
-    for(unsigned int i = 0; i < neighbors.size(); i++)
-      {
-      bool inbounds;
-      ImageType::PixelType neighborPixel = iterator.GetPixel(neighbors[i], inbounds);
-
-      // If the current neighbor is outside the image, skip it
-      if(!inbounds)
-        {
-        continue;
-        }
-      // If pixel is not valid, skip this edge.
-      if(!neighborPixel[4]) // validity channel
-	{
-	continue;
-	}
-
-      DifferenceDepth differenceDepth;
-      float pixelDifference = differenceDepth.Compute(centerPixel, neighborPixel);
-
-      //std::cout << "pixelDepthDifference: " << pixelDifference << std::endl;
-      this->AllDepthDifferences.push_back(pixelDifference);
-      }
-    }
-
-}
-
-float ImageGraphCut::ComputeMedianDepthDifference()
-{
-  float medianDifference = Helpers::VectorMedian<float>(this->AllDepthDifferences);
-
-  return medianDifference;
-}
-
-float ImageGraphCut::ComputeAverageColorDifference()
-{
-  float sumColorDifferences = std::accumulate(this->AllColorDifferences.begin(), this->AllColorDifferences.end(), 0);
-  float averageColorDifference = sumColorDifferences / static_cast<float>(this->AllColorDifferences.size());
-
-  return averageColorDifference;
-}
-
-float ImageGraphCut::ComputeAverageDepthDifference()
-{
-  float sumDepthDifferences = std::accumulate(this->AllDepthDifferences.begin(), this->AllDepthDifferences.end(), 0);
-  float averageDepthDifference = sumDepthDifferences / static_cast<float>(this->AllDepthDifferences.size());
-
-  return averageDepthDifference;
-}
 
 itk::Size<2> ImageGraphCut::Get1x1Radius()
 {
@@ -798,181 +638,11 @@ void ImageGraphCut::ConstructNeighborhoodIterator(NeighborhoodIteratorType* iter
 }
 
 
-void ImageGraphCut::WriteEdges(const std::string& fileName)
-{
-  UsedDepth = 0;
-  UsedColor = 0;
-  
-  // Create a vtkPoints object that we will later create line segments on. Store the PointIDs in an image for easy lookup (corresponding to pixels that will be traversed in other images)
-  typedef itk::Image<unsigned int, 2> UnsignedIntImageType;
-  UnsignedIntImageType::Pointer pointIDImage = UnsignedIntImageType::New();
-  pointIDImage->SetRegions(this->Image->GetLargestPossibleRegion());
-  pointIDImage->Allocate();
-  pointIDImage->FillBuffer(0);
-  
-  vtkSmartPointer<vtkPoints> points = vtkSmartPointer<vtkPoints>::New();
-  
-  itk::ImageRegionIterator<UnsignedIntImageType> pointIDImageIterator(pointIDImage, pointIDImage->GetLargestPossibleRegion());
- 
-  unsigned int counter = 0;
-  while(!pointIDImageIterator.IsAtEnd())
-    {
-    double p[3];
-    p[0] = pointIDImageIterator.GetIndex()[0];
-    p[1] = pointIDImageIterator.GetIndex()[1];
-    p[2] = 0;
-    points->InsertNextPoint(p);
-    
-    pointIDImageIterator.Set(counter);
-  
-    counter++;
-    ++pointIDImageIterator;
-    }
-  
-  
-  ////////// Create n-edges and set n-edge weights (links between image nodes) //////////
-  std::vector<NeighborhoodIteratorType::OffsetType> neighbors;
-  NeighborhoodIteratorType iterator(Get1x1Radius(), this->Image, this->Image->GetLargestPossibleRegion());
-  ConstructNeighborhoodIterator(&iterator, neighbors);
-
-  // Traverse the image adding an edge between:
-  // - the current pixel and the pixel below it
-  // - the current pixel and the pixel to the right of it
-  // - the current pixel and the pixel to the bottom-right of it
-  // This prevents duplicate edges (i.e. we cannot add an edge to all 8-connected neighbors of every pixel or almost every edge would be duplicated.
-  
-  // Create a cell array to store the lines
-  vtkSmartPointer<vtkCellArray> lines = vtkSmartPointer<vtkCellArray>::New();
-  
-  vtkSmartPointer<vtkFloatArray> finalWeights = vtkSmartPointer<vtkFloatArray>::New();
-  finalWeights->SetNumberOfComponents(1);
-  finalWeights->SetName("FinalWeights");
-  
-  // Color
-  vtkSmartPointer<vtkFloatArray> colorWeights = vtkSmartPointer<vtkFloatArray>::New();
-  colorWeights->SetNumberOfComponents(1);
-  colorWeights->SetName("ColorWeights");
-  
-  vtkSmartPointer<vtkFloatArray> absoluteNormalizedColorWeights = vtkSmartPointer<vtkFloatArray>::New();
-  absoluteNormalizedColorWeights->SetNumberOfComponents(1);
-  absoluteNormalizedColorWeights->SetName("AbsoluteNormalizedColorWeights");
-  
-  vtkSmartPointer<vtkFloatArray> dataNormalizedColorWeights = vtkSmartPointer<vtkFloatArray>::New();
-  dataNormalizedColorWeights->SetNumberOfComponents(1);
-  dataNormalizedColorWeights->SetName("DataNormalizedColorWeights");
-  
-  // Depth
-  vtkSmartPointer<vtkFloatArray> depthWeights = vtkSmartPointer<vtkFloatArray>::New();
-  depthWeights->SetNumberOfComponents(1);
-  depthWeights->SetName("DepthWeights");
-  
-  vtkSmartPointer<vtkFloatArray> absoluteNormalizedDepthWeights = vtkSmartPointer<vtkFloatArray>::New();
-  absoluteNormalizedDepthWeights->SetNumberOfComponents(1);
-  absoluteNormalizedDepthWeights->SetName("AbsoluteNormalizedDepthWeights");
-
-  vtkSmartPointer<vtkFloatArray> dataNormalizedDepthWeights = vtkSmartPointer<vtkFloatArray>::New();
-  dataNormalizedDepthWeights->SetNumberOfComponents(1);
-  dataNormalizedDepthWeights->SetName("DataNormalizedDepthWeights");
-  
-  for(iterator.GoToBegin(); !iterator.IsAtEnd(); ++iterator)
-    {
-    PixelType centerPixel = iterator.GetCenterPixel();
-
-    for(unsigned int i = 0; i < neighbors.size(); i++)
-      {
-      bool inbounds;
-      iterator.GetPixel(neighbors[i], inbounds);
-
-      // If the current neighbor is outside the image, skip it
-      if(!inbounds)
-        {
-        continue;
-        }
-      
-      unsigned int currentPixelId = pointIDImage->GetPixel(iterator.GetIndex());
-      
-      unsigned int neighborPixelId = pointIDImage->GetPixel(iterator.GetIndex(neighbors[i]));
-      
-      PixelType neighborPixel = iterator.GetPixel(neighbors[i]);
-      
-      if(centerPixel[4] && neighborPixel[4])
-	{
-
-	// Compute the Euclidean distance between the pixel intensities
-	DifferenceDepthWeightedByColor differenceDepthWeightedByColor(*(this->DifferenceFunction));
-	float finalDifference = differenceDepthWeightedByColor.Compute(centerPixel, neighborPixel);
-	
-	finalWeights->InsertNextValue(finalDifference);
-	
-	// Color
-	DifferenceColor colorDifferenceFunction(*(this->DifferenceFunction));
-	
-	float colorDifference = colorDifferenceFunction.Compute(centerPixel, neighborPixel);
-	colorWeights->InsertNextValue(colorDifference);
-	
-	DifferenceColorAbsoluteNormalized absoluteNormalizedPixelColorDifferenceFunction(*(this->DifferenceFunction));
-	float absoluteNormalizedColorDifference = absoluteNormalizedPixelColorDifferenceFunction.Compute(centerPixel, neighborPixel);
-	absoluteNormalizedColorWeights->InsertNextValue(absoluteNormalizedColorDifference);
-	
-	DifferenceColorDataNormalized dataNormalizedPixelColorDifferenceFunction(*(this->DifferenceFunction));
-	float dataNormalizedColorDifference = dataNormalizedPixelColorDifferenceFunction.Compute(centerPixel, neighborPixel);
-	dataNormalizedColorWeights->InsertNextValue(dataNormalizedColorDifference);
-	
-	// Depth
-	DifferenceDepth depthDifferenceFunction(*(this->DifferenceFunction));
-	float depthDifference = depthDifferenceFunction.Compute(centerPixel, neighborPixel);
-	depthWeights->InsertNextValue(depthDifference);
-	
-	DifferenceDepthAbsoluteNormalized absoluteNormalizedPixelDepthDifferenceFunction(*(this->DifferenceFunction));
-	float absoluteNormalizedDepthDifference = absoluteNormalizedPixelDepthDifferenceFunction.Compute(centerPixel, neighborPixel);
-	absoluteNormalizedDepthWeights->InsertNextValue(absoluteNormalizedDepthDifference);
-	
-	DifferenceDepthDataNormalized dataNormalizedPixelDepthDifferenceFunction(*(this->DifferenceFunction));
-	float dataNormalizedDepthDifference = dataNormalizedPixelDepthDifferenceFunction.Compute(centerPixel, neighborPixel);
-	dataNormalizedDepthWeights->InsertNextValue(dataNormalizedDepthDifference);
-	
-	//std::cout << "weight between " << currentPixelId << " and " << neighborPixelId << " set to " << pixelDifference << std::endl;
-	}
-      else
-	{
-	finalWeights->InsertNextValue(0);
-	colorWeights->InsertNextValue(0);
-	absoluteNormalizedColorWeights->InsertNextValue(0);
-	dataNormalizedColorWeights->InsertNextValue(0);
-	depthWeights->InsertNextValue(0);
-	absoluteNormalizedDepthWeights->InsertNextValue(0);
-	dataNormalizedDepthWeights->InsertNextValue(0);
-	}
-      // Create an edge
-      vtkSmartPointer<vtkLine> line = vtkSmartPointer<vtkLine>::New();
-      line->GetPointIds()->SetId(0,currentPixelId);
-      line->GetPointIds()->SetId(1,neighborPixelId);
-      lines->InsertNextCell(line);
- 
-      } // end neighbors loop
-    
-    } // end iterator loop
-
-  // Create a polydata to store everything in
-  vtkSmartPointer<vtkPolyData> polyData = vtkSmartPointer<vtkPolyData>::New();
-  polyData->SetPoints(points);
-  polyData->SetLines(lines);
-  polyData->GetCellData()->SetScalars(finalWeights);
-  polyData->GetCellData()->AddArray(colorWeights);
-  polyData->GetCellData()->AddArray(absoluteNormalizedColorWeights);
-  polyData->GetCellData()->AddArray(dataNormalizedColorWeights);
-  polyData->GetCellData()->AddArray(depthWeights);
-  polyData->GetCellData()->AddArray(absoluteNormalizedDepthWeights);
-  polyData->GetCellData()->AddArray(dataNormalizedDepthWeights);
-  
-  // Write the file
-  vtkSmartPointer<vtkXMLPolyDataWriter> writer = vtkSmartPointer<vtkXMLPolyDataWriter>::New();
-  writer->SetFileName(fileName.c_str());
-  writer->SetInput(polyData);
-  writer->Write();
-}
-
 float ImageGraphCut::ComputeEdgeWeight(float difference)
 {
-  return exp(-pow(difference,2)/(2.0*this->CameraNoise*this->CameraNoise));  
+  // Note this value (this->AverageDepthDifference, this->CameraNoise, etc) must correspond to the variance (aka average) of the difference function you are using over the whole image.
+  
+  
+  
+  return exp(-pow(difference,2)/(2.0*this->DifferenceFunction->AverageDifference*this->DifferenceFunction->AverageDifference));
 }

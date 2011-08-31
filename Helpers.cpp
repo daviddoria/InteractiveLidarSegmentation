@@ -7,6 +7,12 @@
 namespace Helpers
 {
 
+  
+bool IsNaN(const double a)
+{
+  return a != a;
+}
+
 void IndicesToBinaryImage(std::vector<itk::Index<2> > indices, UnsignedCharScalarImageType::Pointer image)
 {
   //std::cout << "Setting " << indices.size() << " points to non-zero." << std::endl;

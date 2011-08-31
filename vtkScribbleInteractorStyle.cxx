@@ -126,13 +126,11 @@ void vtkScribbleInteractorStyle::CatchWidgetEvent(vtkObject* caller, long unsign
     static_cast<vtkImageTracerWidget*>(caller);
 
   // Get the points in the selection
-  vtkSmartPointer<vtkPolyData> path =
-    vtkSmartPointer<vtkPolyData>::New();
+  vtkSmartPointer<vtkPolyData> path = vtkSmartPointer<vtkPolyData>::New();
   tracer->GetPath(path);
 
   // Create a filter which will be used to combine the most recent selection with previous selections
-  vtkSmartPointer<vtkAppendPolyData> appendFilter =
-    vtkSmartPointer<vtkAppendPolyData>::New();
+  vtkSmartPointer<vtkAppendPolyData> appendFilter = vtkSmartPointer<vtkAppendPolyData>::New();
   appendFilter->AddInputConnection(path->GetProducerPort());
 
   std::vector<itk::Index<2> > newPoints = PolyDataToPixelList(path);
@@ -182,6 +180,15 @@ void vtkScribbleInteractorStyle::Refresh()
 
 void vtkScribbleInteractorStyle::ClearSelections()
 {
+
+  ClearForegroundSelections();
+  
+  ClearBackgroundSelections();
+
+}
+
+void vtkScribbleInteractorStyle::ClearForegroundSelections()
+{
   /*
    // I thought this would work...
   this->BackgroundSelection->Reset();
@@ -194,17 +201,32 @@ void vtkScribbleInteractorStyle::ClearSelections()
   */
 
   // This seems like a silly way of emptying the polydatas...
-  vtkSmartPointer<vtkPolyData> empytPolyData =
-    vtkSmartPointer<vtkPolyData>::New();
+
+
+  vtkSmartPointer<vtkPolyData> empytPolyData = vtkSmartPointer<vtkPolyData>::New();
   this->ForegroundSelectionPolyData->ShallowCopy(empytPolyData);
-  this->BackgroundSelectionPolyData->ShallowCopy(empytPolyData);
-
+  
   this->ForegroundSelection.clear();
-  this->BackgroundSelection.clear();
-
+  
+  std::cout << "this->ForegroundSelectionPolyData now has " << this->ForegroundSelectionPolyData->GetNumberOfPoints() << " points." << std::endl;
+  std::cout << "this->ForegroundSelection now has " << this->ForegroundSelection.size() << " points." << std::endl;
+  
   this->Refresh();
-
 }
+  
+void vtkScribbleInteractorStyle::ClearBackgroundSelections()
+{
+  vtkSmartPointer<vtkPolyData> empytPolyData = vtkSmartPointer<vtkPolyData>::New();
+  this->BackgroundSelectionPolyData->ShallowCopy(empytPolyData);
+  
+  this->BackgroundSelection.clear();
+  
+  std::cout << "this->BackgroundSelectionPolyData now has " << this->BackgroundSelectionPolyData->GetNumberOfPoints() << " points." << std::endl;
+  std::cout << "this->BackgroundSelection now has " << this->BackgroundSelection.size() << " points." << std::endl;
+  
+  this->Refresh();
+}
+
 
 
 std::vector<itk::Index<2> > PolyDataToPixelList(vtkPolyData* polydata)
