@@ -49,18 +49,20 @@ public slots:
   void on_actionSaveSegmentation_triggered();
   void on_actionFlipImage_triggered();
   void on_actionExit_triggered();
+  void on_actionSaveSelectionsAsImage_triggered();
+  void on_actionSaveSelectionsAsText_triggered();
+  void on_actionLoadSelectionsFromImage_triggered();
+  void on_actionLoadSelectionsFromText_triggered();
 
   // Buttons, radio buttons, and sliders
   void on_btnClearSelections_clicked();
   void on_btnClearBackground_clicked();
   void on_btnClearForeground_clicked();
-  void on_btnSaveSelections_clicked();
-  void on_btnLoadSelections_clicked();
   void on_btnCut_clicked();
   void on_radForeground_clicked();
   void on_radBackground_clicked();
   void sldHistogramBins_valueChanged();
-
+  
   // Setting lambda must be handled specially because we need to multiply the percentage set by the slider by the MaxLambda set in the text box
   void UpdateLambda();
 
@@ -71,6 +73,7 @@ public slots:
   // Use a QFileDialog to get a filename, then open the specified file as a greyscale or color image, depending on which type the user has specified through the file menu.
   void OpenFile();
   
+  void UpdateSelections();
   
 protected:
 
@@ -90,13 +93,15 @@ protected:
   vtkSmartPointer<vtkImageData> OriginalImageData;
   
   // Right pane
+  vtkSmartPointer<vtkImageData> ResultImageData;
   vtkSmartPointer<vtkImageSliceMapper> ResultImageSliceMapper;
   vtkSmartPointer<vtkImageSlice> ResultImageSlice;
   vtkSmartPointer<vtkRenderer> RightRenderer;
   vtkSmartPointer<InteractorStyleImageNoLevel> RightInteractorStyle;
   
   // Both panes
-  vtkSmartPointer<vtkImageData> SourceSinkImageData;
+  vtkSmartPointer<vtkImageData> SourceSinkImageData; // This data can be used by both the Left and Right SourceSinkImageSliceMapper
+  
   vtkSmartPointer<vtkImageSliceMapper> LeftSourceSinkImageSliceMapper;
   vtkSmartPointer<vtkImageSlice> LeftSourceSinkImageSlice;
   

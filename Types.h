@@ -4,6 +4,7 @@
 #include "itkConstShapedNeighborhoodIterator.h"
 #include "itkImage.h"
 //#include "itkShapedNeighborhoodIterator.h"
+#include "itkRGBPixel.h"
 #include "itkVectorImage.h"
 
 // All images are stored internally as float pixels
@@ -21,5 +22,8 @@ typedef UnsignedCharScalarImageType MaskImageType;
 // For traversing image with an 8-neighborhood-visit-only-once idea
 //typedef itk::ShapedNeighborhoodIterator<ImageType> NeighborhoodIteratorType;
 typedef itk::ConstShapedNeighborhoodIterator<ImageType> NeighborhoodIteratorType;
+
+typedef itk::RGBPixel<unsigned char> RGBPixelType;
+typedef itk::Image<RGBPixelType> RGBImageType;
 
 #endif

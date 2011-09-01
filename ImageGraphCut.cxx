@@ -38,7 +38,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <cmath>
 #include <iostream>
 #include <vector>
-#include <numeric> // accumulate
+#include <numeric> // for accumulate()
 
 // VTK
 #include <vtkCellArray.h>
@@ -229,6 +229,10 @@ void ImageGraphCut::PerformSegmentation()
     Helpers::WriteImage<MaskImageType>(this->SegmentMask, "originalSegmentation.png");
     std::cout << "Determining new sources..." << std::endl;
     std::vector<itk::Index<2> > newSources = Helpers::BinaryImageToIndices(this->SegmentMask);
+  
+    // Modify the list of sources so it can be retrieved by the MainWindow after the segmentation is finished
+    this->Sources.insert(this->Sources.end(), newSources.begin(), newSources.end());
+    
     std::cout << "Setting " << newSources.size() << " new sources..." << std::endl;
     SetHardSources(newSources);
   
@@ -307,6 +311,10 @@ void ImageGraphCut::PerformSegmentation()
     //std::cout << "Out of " << consideredCounter << " pixels considered, " << backgroundCounter << " were declared background." << std::endl;
     // Set the new sinks
     std::cout << "Setting " << newSinks.size() << " new sinks." << std::endl;
+    
+    // Modify the list of sinks so it can be retrieved by the MainWindow after the segmentation is finished
+    this->Sinks.insert(this->Sinks.end(), newSinks.begin(), newSinks.end());
+    
     SetHardSinks(newSinks);
     
     std::cout << "Performing the second segmentation..." << std::endl;

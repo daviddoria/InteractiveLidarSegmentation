@@ -93,14 +93,19 @@ MainWindow::MainWindow(QWidget *parent)
   this->qvtkWidgetLeft->GetInteractor()->SetInteractorStyle(this->LeftInteractorStyle);
 
   // Right pane
+  this->ResultImageData = vtkSmartPointer<vtkImageData>::New();
   this->ResultImageSliceMapper = vtkSmartPointer<vtkImageSliceMapper>::New();
   this->ResultImageSlice = vtkSmartPointer<vtkImageSlice>::New();
-
+  
   this->RightRenderer = vtkSmartPointer<vtkRenderer>::New();
   this->RightRenderer->GradientBackgroundOn();
   this->RightRenderer->SetBackground(this->BackgroundColor);
   this->RightRenderer->SetBackground2(1,1,1);
   this->qvtkWidgetRight->GetRenderWindow()->AddRenderer(this->RightRenderer);
+
+  this->ResultImageSliceMapper->SetInputConnection(this->ResultImageData->GetProducerPort());
+  this->ResultImageSlice->SetMapper(this->ResultImageSliceMapper);
+  this->RightRenderer->AddViewProp(this->ResultImageSlice);
 
   this->RightInteractorStyle = vtkSmartPointer<InteractorStyleImageNoLevel>::New();
   this->RightInteractorStyle->SetCurrentRenderer(this->RightRenderer);
@@ -114,7 +119,7 @@ MainWindow::MainWindow(QWidget *parent)
   
   this->RightSourceSinkImageSliceMapper = vtkSmartPointer<vtkImageSliceMapper>::New();
   this->RightSourceSinkImageSlice = vtkSmartPointer<vtkImageSlice>::New();
-    
+  
   // Default GUI settings
   this->radForeground->setChecked(true);
 
@@ -253,15 +258,27 @@ void MainWindow::DisplaySegmentationResult()
   vtkSmartPointer<vtkImageData> VTKImage = vtkSmartPointer<vtkImageData>::New();
   Helpers::ITKImagetoVTKImage(this->GraphCut.GetMaskedOutput(), VTKImage);
 
+  // Mask the VTK image with the segmentation result/mask
   vtkSmartPointer<vtkImageData> VTKMaskedImage = vtkSmartPointer<vtkImageData>::New();
   Helpers::MaskImage(VTKImage, VTKSegmentMask, VTKMaskedImage);
 
-  // Remove the old output, set the new output and refresh everything
+  // Set the new output and refresh everything
   this->ResultImageSliceMapper->SetInputConnection(VTKMaskedImage->GetProducerPort());
-  this->ResultImageSlice->SetMapper(this->ResultImageSliceMapper);
-  this->RightRenderer->RemoveAllViewProps();
   
+  // Sometimes (in the middle of a two-step segmentation) sources/sinks are modified by the GraphCut object
+  this->Sources = this->GraphCut.GetSources();
+  this->Sinks = this->GraphCut.GetSinks();
+  UpdateSelections();
+  
+  // We currently remove everything and re-add everything - see note about the "should be unnecessary" lines below.
+  this->RightRenderer->RemoveAllViewProps();
+  this->RightRenderer->AddViewProp(this->RightSourceSinkImageSlice);
+  
+  // These should be unnecessary because they are connected in the constructor... but the output is not displayed without them
+  this->ResultImageSlice->SetMapper(this->ResultImageSliceMapper);
   this->RightRenderer->AddViewProp(this->ResultImageSlice);
+
+  
   this->RightRenderer->ResetCamera();
   this->Refresh();
 }
@@ -285,6 +302,14 @@ void MainWindow::ScribbleEventHandler(vtkObject* caller, long unsigned int event
     exit(-1);
     }
     
+  UpdateSelections();
+}
+
+void MainWindow::UpdateSelections()
+{
+  // First, clear the image
+  Helpers::CreateTransparentImage(this->SourceSinkImageData);
+  
   unsigned char green[3] = {0, 255, 0};
   unsigned char red[3] = {255, 0, 0};
   
@@ -336,73 +361,189 @@ void MainWindow::sldHistogramBins_valueChanged()
 
 void MainWindow::on_radForeground_clicked()
 {
-  //this->LeftInteractorStyle->SetInteractionModeToForeground();
+  this->LeftInteractorStyle->SetColorToGreen();
 }
 
 void MainWindow::on_radBackground_clicked()
 {
-  //this->LeftInteractorStyle->SetInteractionModeToBackground();
+  this->LeftInteractorStyle->SetColorToRed();
 }
 
 void MainWindow::on_btnClearSelections_clicked()
 {
-  this->LeftInteractorStyle->ClearSelections();
+  //this->LeftInteractorStyle->ClearSelections();
+  this->Sources.clear();
+  this->Sinks.clear();
+  UpdateSelections();
 }
 
 void MainWindow::on_btnClearForeground_clicked()
 {
-  this->LeftInteractorStyle->ClearForegroundSelections();
+  //this->LeftInteractorStyle->ClearForegroundSelections();
+  this->Sources.clear();
+  UpdateSelections();
 }
 
 void MainWindow::on_btnClearBackground_clicked()
 {
-  this->LeftInteractorStyle->ClearBackgroundSelections();
+  //this->LeftInteractorStyle->ClearBackgroundSelections();
+  this->Sinks.clear();
+  UpdateSelections();
 }
 
-void MainWindow::on_btnSaveSelections_clicked()
+void MainWindow::on_actionSaveSelectionsAsImage_triggered()
 {
-  QString directoryName = QFileDialog::getExistingDirectory(this,
-     "Open Directory", QDir::homePath(), QFileDialog::ShowDirsOnly);
+  QString filename = QFileDialog::getSaveFileName(this,
+     "Save Image", ".", "PNG Files (*.png)");
 
-  std::string foregroundFilename = QDir(directoryName).absoluteFilePath("foreground.png").toStdString();
-  std::string backgroundFilename = QDir(directoryName).absoluteFilePath("background.png").toStdString();
+  if(filename.isEmpty())
+    {
+    return;
+    }
 
-  std::cout << "Writing to " << foregroundFilename << " and " << backgroundFilename << std::endl;
+  RGBImageType::Pointer selectionsImage = RGBImageType::New();
+  
+  selectionsImage->SetRegions(this->ImageRegion);
+  selectionsImage->Allocate();
+  
+  RGBPixelType whitePixel;
+  whitePixel.SetRed(255);
+  whitePixel.SetGreen(255);
+  whitePixel.SetBlue(255);
+  
+  selectionsImage->FillBuffer(whitePixel);
+  
+  RGBPixelType greenPixel;
+  greenPixel.SetRed(0);
+  greenPixel.SetGreen(255);
+  greenPixel.SetBlue(0);
+  Helpers::SetPixels<RGBImageType>(selectionsImage, this->Sources, greenPixel);
+  
+  RGBPixelType redPixel;
+  redPixel.SetRed(255);
+  redPixel.SetGreen(0);
+  redPixel.SetBlue(0);
+  Helpers::SetPixels<RGBImageType>(selectionsImage, this->Sinks, redPixel);
 
-  UnsignedCharScalarImageType::Pointer foregroundImage = UnsignedCharScalarImageType::New();
-  foregroundImage->SetRegions(this->ImageRegion);
-  foregroundImage->Allocate();
-  //Helpers::IndicesToBinaryImage(this->LeftInteractorStyle->GetForegroundSelection(), foregroundImage);
-  Helpers::IndicesToBinaryImage(this->Sources, foregroundImage);
-
-  typedef  itk::ImageFileWriter< UnsignedCharScalarImageType  > WriterType;
+  typedef  itk::ImageFileWriter< RGBImageType  > WriterType;
   WriterType::Pointer writer = WriterType::New();
-  writer->SetFileName(foregroundFilename);
-  writer->SetInput(foregroundImage);
-  writer->Update();
-
-  UnsignedCharScalarImageType::Pointer backgroundImage = UnsignedCharScalarImageType::New();
-  backgroundImage->SetRegions(this->ImageRegion);
-  backgroundImage->Allocate();
-  //Helpers::IndicesToBinaryImage(this->LeftInteractorStyle->GetBackgroundSelection(), backgroundImage);
-  Helpers::IndicesToBinaryImage(this->Sinks, backgroundImage);
-
-  writer->SetFileName(backgroundFilename);
-  writer->SetInput(backgroundImage);
+  writer->SetFileName(filename.toStdString());
+  writer->SetInput(selectionsImage);
   writer->Update();
 }
 
 
-void MainWindow::on_btnLoadSelections_clicked()
+
+void MainWindow::on_actionSaveSelectionsAsText_triggered()
 {
-  // TODO: 
-  QString directoryName = QFileDialog::getExistingDirectory(this,
-     "Open Directory", QDir::homePath(), QFileDialog::ShowDirsOnly);
+  QString filename = QFileDialog::getSaveFileName(this,
+     "Save Selections", ".", "TXT Files (*.txt)");
 
-  std::string foregroundFilename = QDir(directoryName).absoluteFilePath("foreground.png").toStdString();
-  std::string backgroundFilename = QDir(directoryName).absoluteFilePath("background.png").toStdString();
-
+  if(filename.isEmpty())
+    {
+    return;
+    }
+    
+  std::ofstream fout(filename.toStdString().c_str());
+  for(unsigned int i = 0; i < this->Sources.size(); ++i)
+    {
+    fout << "f " << this->Sources[0] << this->Sources[1] << std::endl; // 'f' stands for 'foreground'
+    }
+    
+  for(unsigned int i = 0; i < this->Sinks.size(); ++i)
+    {
+    fout << "b " << this->Sinks[0] << this->Sinks[1] << std::endl; // 'b' stands for 'background'
+    }
+ 
+  fout.close();
 }
+
+
+void MainWindow::on_actionLoadSelectionsFromImage_triggered()
+{
+  QString filename = QFileDialog::getOpenFileName(this,
+     "Open Image", ".", "PNG Files (*.png)");
+
+  if(filename.isEmpty())
+    {
+    return;
+    }
+
+  typedef  itk::ImageFileReader< RGBImageType  > ReaderType;
+  ReaderType::Pointer reader = ReaderType::New();
+  reader->SetFileName(filename.toStdString());
+  reader->Update();
+
+  RGBPixelType greenPixel;
+  greenPixel.SetRed(0);
+  greenPixel.SetGreen(255);
+  greenPixel.SetBlue(0);
+  
+  RGBPixelType redPixel;
+  redPixel.SetRed(255);
+  redPixel.SetGreen(0);
+  redPixel.SetBlue(0);
+  
+  itk::ImageRegionConstIterator<RGBImageType> imageIterator(reader->GetOutput(), reader->GetOutput()->GetLargestPossibleRegion());
+ 
+  while(!imageIterator.IsAtEnd())
+    {
+    if(imageIterator.Get() == greenPixel)
+      {
+      this->Sources.push_back(imageIterator.GetIndex());
+      }
+    else if(imageIterator.Get() == redPixel)
+      {
+      this->Sinks.push_back(imageIterator.GetIndex());
+      }
+ 
+    ++imageIterator;
+    }
+}
+
+
+void MainWindow::on_actionLoadSelectionsFromText_triggered()
+{
+  QString filename = QFileDialog::getOpenFileName(this,
+     "Open Image", ".", "PNG Files (*.png)");
+
+  if(filename.isEmpty())
+    {
+    return;
+    }
+    
+  std::ifstream fin(filename.toStdString().c_str());
+ 
+  if(fin == NULL)
+    {
+    std::cout << "Cannot open file." << std::endl;
+    }
+ 
+  std::string line;
+ 
+  while(getline(fin, line))
+    {
+    std::stringstream ss;
+    ss << line;
+    char selectionType;
+    itk::Index<2> pixel;
+    ss >> selectionType >> pixel[0] >> pixel[1];
+    if(selectionType == 'f')
+      {
+      this->Sources.push_back(pixel);
+      }
+    else if(selectionType == 'b')
+      {
+      this->Sinks.push_back(pixel);
+      }
+    else
+      {
+      std::cerr << "Selectiontype is " << selectionType << " - should be 'f' or 'b' (foreground or background)" << std::endl;
+      exit(-1);
+      }
+    }
+}
+
 
 void MainWindow::on_btnCut_clicked()
 {

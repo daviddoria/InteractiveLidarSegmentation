@@ -41,6 +41,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 vtkStandardNewMacro(InteractorStyleScribble);
 
+void InteractorStyleScribble::SetColorToGreen()
+{
+  this->Tracer->GetLineProperty()->SetColor(0,1,0);
+}
+
+void InteractorStyleScribble::SetColorToRed()
+{
+  this->Tracer->GetLineProperty()->SetColor(1,0,0);
+}
+
 void InteractorStyleScribble::OnLeftButtonDown()
 {
   vtkInteractorStyleImage::OnMiddleButtonDown();
@@ -84,33 +94,12 @@ InteractorStyleScribble::InteractorStyleScribble()
   // Update the selection when the EndInteraction event is fired.
   this->Tracer->AddObserver(vtkCommand::EndInteractionEvent, this, &InteractorStyleScribble::CatchWidgetEvent);
 
-  // Defaults
-  //this->SelectionType = FOREGROUND;
 }
 
 std::vector<itk::Index<2> > InteractorStyleScribble::GetSelection()
 {
   return this->Selection;
 }
-
-/*
-std::vector<itk::Index<2> > vtkScribbleInteractorStyle::GetForegroundSelection()
-{
-  return this->ForegroundSelection;
-}
-
-std::vector<itk::Index<2> > vtkScribbleInteractorStyle::GetBackgroundSelection()
-{
-  return this->BackgroundSelection;
-}
-*/
-
-/*
-int vtkScribbleInteractorStyle::GetSelectionType()
-{
-  return this->SelectionType;
-}
-*/
 
 void InteractorStyleScribble::InitializeTracer(vtkImageSlice* imageSlice)
 {

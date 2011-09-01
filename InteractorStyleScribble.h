@@ -44,14 +44,10 @@ public:
 
   void OnLeftButtonDown();
   void OnLeftButtonUp();
-  //int GetSelectionType();
-  //enum SELECTION {FOREGROUND, BACKGROUND};
 
-  //void SetInteractionModeToForeground();
-  //void SetInteractionModeToBackground();
-
-  //std::vector<itk::Index<2> > GetForegroundSelection();
-  //std::vector<itk::Index<2> > GetBackgroundSelection();
+  void SetColorToGreen();
+  void SetColorToRed();
+  
   std::vector<itk::Index<2> > GetSelection();
 
   // Empty both the foreground and background selection
@@ -79,7 +75,6 @@ private:
 
   // Keep track of the pixels the user selected.
   std::vector<itk::Index<2> > Selection;
-  //std::vector<itk::Index<2> > BackgroundSelection;
 
 };
 

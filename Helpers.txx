@@ -95,6 +95,14 @@ void ITKImagetoVTKImage<RGBDIImageType>(RGBDIImageType::Pointer image, vtkImageD
 }
 #endif
 
+template <typename TImage>
+void SetPixels(TImage* image, std::vector<itk::Index<2> > pixels, typename TImage::PixelType value)
+{
+  for(unsigned int i = 0; i < pixels.size(); ++i)
+    {
+    image->SetPixel(pixels[i], value);
+    }  
+}
 
 
 } // end namespace

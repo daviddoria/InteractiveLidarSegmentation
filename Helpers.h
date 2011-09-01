@@ -59,6 +59,9 @@ T VectorAverage(std::vector<T> &v);
 template<typename TImage>
 void WriteImage(typename TImage::Pointer image, const std::string& fileName);
 
+template <typename TImage>
+void SetPixels(TImage* image, std::vector<itk::Index<2> > pixels, typename TImage::PixelType value);
+
 }
 
 #include "Helpers.txx"
