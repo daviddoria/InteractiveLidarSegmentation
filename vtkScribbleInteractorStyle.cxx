@@ -22,7 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <vtkAppendPolyData.h>
 #include <vtkCallbackCommand.h>
 #include <vtkCommand.h>
-#include <vtkImageActor.h>
+#include <vtkImageSlice.h>
 #include <vtkImageData.h>
 #include <vtkImageTracerWidget.h>
 #include <vtkPolyData.h>
@@ -88,12 +88,12 @@ int vtkScribbleInteractorStyle::GetSelectionType()
   return this->SelectionType;
 }
 
-void vtkScribbleInteractorStyle::InitializeTracer(vtkImageActor* imageActor)
+void vtkScribbleInteractorStyle::InitializeTracer(vtkImageSlice* imageSlice)
 {
   std::cout << "Enter InitializeTracer()" << std::endl;
-  this->CurrentRenderer->AddActor(imageActor);
+  this->CurrentRenderer->AddActor(imageSlice);
   this->Tracer->SetInteractor(this->Interactor);
-  this->Tracer->SetViewProp(imageActor);
+  this->Tracer->SetViewProp(imageSlice);
   this->Tracer->ProjectToPlaneOn();
 
   this->Tracer->On();

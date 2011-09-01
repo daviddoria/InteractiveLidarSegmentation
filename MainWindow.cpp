@@ -32,8 +32,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // VTK
 #include <vtkCamera.h>
-#include <vtkImageActor.h>
 #include <vtkImageData.h>
+#include <vtkImageSlice.h>
+#include <vtkImageSliceMapper.h>
 #include <vtkInteractorStyleImage.h>
 #include <vtkPolyData.h>
 #include <vtkRenderer.h>
@@ -74,8 +75,11 @@ MainWindow::MainWindow(QWidget *parent)
   this->CameraUp[2] = 0;
 
   // Instantiations
-  this->OriginalImageActor = vtkSmartPointer<vtkImageActor>::New();
-  this->ResultActor = vtkSmartPointer<vtkImageActor>::New();
+  this->OriginalImageSliceMapper = vtkSmartPointer<vtkImageSliceMapper>::New();
+  this->ResultImageSliceMapper = vtkSmartPointer<vtkImageSliceMapper>::New();
+  
+  this->OriginalImageSlice = vtkSmartPointer<vtkImageSlice>::New();
+  this->ResultImageSlice = vtkSmartPointer<vtkImageSlice>::New();
 
   // Add renderers - we flip the image by changing the camera view up because of the conflicting conventions used by ITK and VTK
   this->LeftRenderer = vtkSmartPointer<vtkRenderer>::New();
@@ -252,9 +256,10 @@ void MainWindow::StopProgressSlot()
 
   // Remove the old output, set the new output and refresh everything
   //this->ResultActor = vtkSmartPointer<vtkImageActor>::New();
-  this->ResultActor->SetInput(VTKMaskedImage);
+  this->ResultImageSliceMapper->SetInputConnection(VTKMaskedImage->GetProducerPort());
+  this->ResultImageSlice->SetMapper(this->ResultImageSliceMapper);
   this->RightRenderer->RemoveAllViewProps();
-  this->RightRenderer->AddActor(ResultActor);
+  this->RightRenderer->AddActor(this->ResultImageSlice);
   this->RightRenderer->ResetCamera();
   this->Refresh();
 
@@ -489,9 +494,10 @@ void MainWindow::OpenFile()
 
   this->LeftRenderer->RemoveAllViewProps();
 
-  this->OriginalImageActor->SetInput(VTKImage);
-  this->OriginalImageActor->InterpolateOff();
-  this->GraphCutStyle->InitializeTracer(this->OriginalImageActor);
+  this->OriginalImageSliceMapper->SetInputConnection(VTKImage->GetProducerPort());
+  this->OriginalImageSlice->SetMapper(this->OriginalImageSliceMapper);
+  //this->OriginalImageSlice->InterpolateOff();
+  this->GraphCutStyle->InitializeTracer(this->OriginalImageSlice);
 
   this->LeftRenderer->ResetCamera();
   this->Refresh();

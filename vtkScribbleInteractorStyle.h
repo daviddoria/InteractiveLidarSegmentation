@@ -30,7 +30,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "ImageGraphCut.h"
 
-class vtkImageActor;
+class vtkImageSlice;
 class vtkImageData;
 class vtkPolyData;
 
@@ -59,7 +59,7 @@ public:
   void ClearBackgroundSelections();
 
   // Connect the tracer to the interactor, etc.
-  void InitializeTracer(vtkImageActor* imageActor);
+  void InitializeTracer(vtkImageSlice* imageSlice);
 
 private:
   void Refresh();

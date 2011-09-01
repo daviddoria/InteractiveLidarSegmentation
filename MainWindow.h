@@ -32,6 +32,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "ProgressThread.h"
 #include "vtkScribbleInteractorStyle.h"
 
+// Forward declarations
+class vtkImageSlice;
+class vtkImageSliceMapper;
+
 class MainWindow : public QMainWindow, private Ui::MainWindow
 {
 Q_OBJECT
@@ -79,8 +83,10 @@ protected:
   vtkSmartPointer<vtkScribbleInteractorStyle> GraphCutStyle;
 
   // The input and output image actors
-  vtkSmartPointer<vtkImageActor> OriginalImageActor;
-  vtkSmartPointer<vtkImageActor> ResultActor;
+  vtkSmartPointer<vtkImageSliceMapper> OriginalImageSliceMapper;
+  vtkSmartPointer<vtkImageSliceMapper> ResultImageSliceMapper;
+  vtkSmartPointer<vtkImageSlice> OriginalImageSlice;
+  vtkSmartPointer<vtkImageSlice> ResultImageSlice;
 
   // The renderers
   vtkSmartPointer<vtkRenderer> LeftRenderer;
