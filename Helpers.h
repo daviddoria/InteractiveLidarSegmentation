@@ -23,6 +23,12 @@ itk::Index<2> FindClosestNonZeroPixel(MaskImageType::Pointer, itk::Index<2>);
 
 void MaskImage(vtkSmartPointer<vtkImageData> VTKImage, vtkSmartPointer<vtkImageData> VTKSegmentMask, vtkSmartPointer<vtkImageData> VTKMaskedImage);
 
+void CreateTransparentImage(vtkImageData* VTKImage);
+
+void SetImageSize(vtkImageData* input, vtkImageData* output);
+
+void SetPixels(vtkImageData* VTKImage, std::vector<itk::Index<2> > pixels, unsigned char color[3]);
+
 // Determine if a number is NaN
 bool IsNaN(const double a);
 
@@ -39,7 +45,7 @@ void ITKImagetoVTKImage(ImageType::Pointer image, vtkImageData* outputImage); //
 void ITKImagetoVTKRGBImage(ImageType::Pointer image, vtkImageData* outputImage);
 void ITKImagetoVTKMagnitudeImage(ImageType::Pointer image, vtkImageData* outputImage);
 
-void ITKScalarImagetoVTKImage(MaskImageType::Pointer image, vtkImageData* outputImage);
+void ITKScalarImageToVTKImage(MaskImageType::Pointer image, vtkImageData* outputImage);
 
 
 std::vector<itk::Index<2> > PolyDataToPixelList(vtkPolyData* polydata);

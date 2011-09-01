@@ -20,22 +20,23 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // Custom
 #include "Difference.h"
 #include "Helpers.h"
+#include "InteractorStyleImageNoLevel.h"
+#include "InteractorStyleScribble.h"
 
 // ITK
-#include <itkCastImageFilter.h>
-#include <itkCovariantVector.h>
-#include <itkImageFileReader.h>
-#include <itkImageFileWriter.h>
-#include <itkImageRegionConstIteratorWithIndex.h>
-#include <itkLineIterator.h>
-#include <itkNthElementImageAdaptor.h>
+#include "itkCastImageFilter.h"
+#include "itkCovariantVector.h"
+#include "itkImageFileReader.h"
+#include "itkImageFileWriter.h"
+#include "itkImageRegionConstIteratorWithIndex.h"
+#include "itkLineIterator.h"
+#include "itkNthElementImageAdaptor.h"
 
 // VTK
 #include <vtkCamera.h>
 #include <vtkImageData.h>
 #include <vtkImageSlice.h>
 #include <vtkImageSliceMapper.h>
-#include <vtkInteractorStyleImage.h>
 #include <vtkPolyData.h>
 #include <vtkRenderer.h>
 #include <vtkRenderWindow.h>
@@ -54,7 +55,11 @@ MainWindow::MainWindow(QWidget *parent)
 {
   // Setup the GUI and connect all of the signals and slots
   setupUi(this);
-
+  
+  // Global settings
+  this->Flipped = false;
+  
+  // Qt connections
   connect( this->sldHistogramBins, SIGNAL( valueChanged(int) ), this, SLOT(sldHistogramBins_valueChanged()));
   connect( this->sldLambda, SIGNAL( valueChanged(int) ), this, SLOT(UpdateLambda()));
   connect( this->txtLambdaMax, SIGNAL( textEdited(QString) ), this, SLOT(UpdateLambda()));
@@ -66,46 +71,50 @@ MainWindow::MainWindow(QWidget *parent)
   this->progressBar->setMaximum(0);
   this->progressBar->hide();
 
+  // Setup backgrounds
   this->BackgroundColor[0] = 0;
   this->BackgroundColor[1] = 0;
   this->BackgroundColor[2] = .5;
 
-  this->CameraUp[0] = 0;
-  this->CameraUp[1] = 1;
-  this->CameraUp[2] = 0;
-
-  // Instantiations
+  // Left pane
+  this->OriginalImageData = vtkSmartPointer<vtkImageData>::New();
   this->OriginalImageSliceMapper = vtkSmartPointer<vtkImageSliceMapper>::New();
-  this->ResultImageSliceMapper = vtkSmartPointer<vtkImageSliceMapper>::New();
-  
   this->OriginalImageSlice = vtkSmartPointer<vtkImageSlice>::New();
-  this->ResultImageSlice = vtkSmartPointer<vtkImageSlice>::New();
 
-  // Add renderers - we flip the image by changing the camera view up because of the conflicting conventions used by ITK and VTK
   this->LeftRenderer = vtkSmartPointer<vtkRenderer>::New();
   this->LeftRenderer->GradientBackgroundOn();
   this->LeftRenderer->SetBackground(this->BackgroundColor);
   this->LeftRenderer->SetBackground2(1,1,1);
-  this->LeftRenderer->GetActiveCamera()->SetViewUp(this->CameraUp);
   this->qvtkWidgetLeft->GetRenderWindow()->AddRenderer(this->LeftRenderer);
+
+  this->LeftInteractorStyle = vtkSmartPointer<InteractorStyleScribble>::New();
+  this->LeftInteractorStyle->AddObserver(this->LeftInteractorStyle->ScribbleEvent, this, &MainWindow::ScribbleEventHandler);
+  this->LeftInteractorStyle->SetCurrentRenderer(this->LeftRenderer);
+  this->qvtkWidgetLeft->GetInteractor()->SetInteractorStyle(this->LeftInteractorStyle);
+
+  // Right pane
+  this->ResultImageSliceMapper = vtkSmartPointer<vtkImageSliceMapper>::New();
+  this->ResultImageSlice = vtkSmartPointer<vtkImageSlice>::New();
 
   this->RightRenderer = vtkSmartPointer<vtkRenderer>::New();
   this->RightRenderer->GradientBackgroundOn();
   this->RightRenderer->SetBackground(this->BackgroundColor);
   this->RightRenderer->SetBackground2(1,1,1);
-  this->RightRenderer->GetActiveCamera()->SetViewUp(this->CameraUp);
   this->qvtkWidgetRight->GetRenderWindow()->AddRenderer(this->RightRenderer);
 
-  // Setup right interactor style
-  vtkSmartPointer<vtkInteractorStyleImage> interactorStyleImage =
-    vtkSmartPointer<vtkInteractorStyleImage>::New();
-  this->qvtkWidgetRight->GetInteractor()->SetInteractorStyle(interactorStyleImage);
+  this->RightInteractorStyle = vtkSmartPointer<InteractorStyleImageNoLevel>::New();
+  this->RightInteractorStyle->SetCurrentRenderer(this->RightRenderer);
+  this->qvtkWidgetRight->GetInteractor()->SetInteractorStyle(this->RightInteractorStyle);
 
-  // Setup left interactor style
-  this->GraphCutStyle = vtkSmartPointer<vtkScribbleInteractorStyle>::New();
-  this->GraphCutStyle->SetCurrentRenderer(this->LeftRenderer);
-  this->qvtkWidgetLeft->GetInteractor()->SetInteractorStyle(this->GraphCutStyle);
-
+  // Both panes
+  this->SourceSinkImageData = vtkSmartPointer<vtkImageData>::New();
+  
+  this->LeftSourceSinkImageSliceMapper = vtkSmartPointer<vtkImageSliceMapper>::New();
+  this->LeftSourceSinkImageSlice = vtkSmartPointer<vtkImageSlice>::New();
+  
+  this->RightSourceSinkImageSliceMapper = vtkSmartPointer<vtkImageSliceMapper>::New();
+  this->RightSourceSinkImageSlice = vtkSmartPointer<vtkImageSlice>::New();
+    
   // Default GUI settings
   this->radForeground->setChecked(true);
 
@@ -125,6 +134,8 @@ MainWindow::MainWindow(QWidget *parent)
   //QTimer::singleShot(0, this, SLOT(sldHistogramBins_valueChanged()));
   //QTimer::singleShot(0, this, SLOT(sldHistogramBins_sliderMoved()));
   this->lblHistogramBins->setNum(this->sldHistogramBins->value());
+  
+
 }
 
 void MainWindow::on_actionExit_triggered()
@@ -132,11 +143,47 @@ void MainWindow::on_actionExit_triggered()
   exit(0);
 }
 
+void MainWindow::SetCameraPosition1()
+{
+  double leftToRight[3] = {-1,0,0};
+  double bottomToTop[3] = {0,1,0};
+  this->LeftInteractorStyle->SetImageOrientation(leftToRight, bottomToTop);
+  this->RightInteractorStyle->SetImageOrientation(leftToRight, bottomToTop); 
+  
+  this->LeftRenderer->ResetCamera();
+  this->LeftRenderer->ResetCameraClippingRange();
+  
+  this->RightRenderer->ResetCamera();
+  this->RightRenderer->ResetCameraClippingRange();
+}
+
+void MainWindow::SetCameraPosition2()
+{
+  double leftToRight[3] = {-1,0,0};
+  double bottomToTop[3] = {0,-1,0};
+  this->LeftInteractorStyle->SetImageOrientation(leftToRight, bottomToTop);
+  this->RightInteractorStyle->SetImageOrientation(leftToRight, bottomToTop); 
+  
+  this->LeftRenderer->ResetCamera();
+  this->LeftRenderer->ResetCameraClippingRange();
+  
+  this->RightRenderer->ResetCamera();
+  this->RightRenderer->ResetCameraClippingRange();
+}
+
 void MainWindow::on_actionFlipImage_triggered()
 {
-  this->CameraUp[1] *= -1;
-  this->LeftRenderer->GetActiveCamera()->SetViewUp(this->CameraUp);
-  this->RightRenderer->GetActiveCamera()->SetViewUp(this->CameraUp);
+  if(this->Flipped)
+    {
+    SetCameraPosition1();
+    }
+  else
+    {
+    SetCameraPosition2();
+    }
+    
+  this->Flipped = !this->Flipped;
+  
   this->Refresh();
 }
 
@@ -196,72 +243,69 @@ void MainWindow::StartProgressSlot()
   this->progressBar->show();
 }
 
-/*
- // Display segmented image with black background pixels
-void Form::StopProgressSlot()
+void MainWindow::DisplaySegmentationResult()
 {
-  // When the ProgressThread emits the StopProgressSignal, we need to display the result of the segmentation
+  // Convert the segmentation mask to a binary VTK image
+  vtkSmartPointer<vtkImageData> VTKSegmentMask = vtkSmartPointer<vtkImageData>::New();
+  Helpers::ITKScalarImageToVTKImage(this->GraphCut.GetSegmentMask(), VTKSegmentMask);
 
-  // Convert the masked image into a VTK image for display
-  vtkSmartPointer<vtkImageData> VTKSegmentMask =
-    vtkSmartPointer<vtkImageData>::New();
-  if(this->GraphCut->GetPixelDimensionality() == 1)
+  // Convert the image into a VTK image for display
+  vtkSmartPointer<vtkImageData> VTKImage = vtkSmartPointer<vtkImageData>::New();
+  Helpers::ITKImagetoVTKImage(this->GraphCut.GetMaskedOutput(), VTKImage);
+
+  vtkSmartPointer<vtkImageData> VTKMaskedImage = vtkSmartPointer<vtkImageData>::New();
+  Helpers::MaskImage(VTKImage, VTKSegmentMask, VTKMaskedImage);
+
+  // Remove the old output, set the new output and refresh everything
+  this->ResultImageSliceMapper->SetInputConnection(VTKMaskedImage->GetProducerPort());
+  this->ResultImageSlice->SetMapper(this->ResultImageSliceMapper);
+  this->RightRenderer->RemoveAllViewProps();
+  
+  this->RightRenderer->AddViewProp(this->ResultImageSlice);
+  this->RightRenderer->ResetCamera();
+  this->Refresh();
+}
+
+void MainWindow::ScribbleEventHandler(vtkObject* caller, long unsigned int eventId, void* callData)
+{
+  //std::cout << "Handled scribble event." << std::endl;
+  
+  std::vector<itk::Index<2> > selection = this->LeftInteractorStyle->GetSelection();
+  if(this->radForeground->isChecked())
     {
-    ITKImagetoVTKImage<GrayscaleImageType>(static_cast<ImageGraphCut<GrayscaleImageType>* >(this->GraphCut)->GetMaskedOutput(), VTKSegmentMask);
+    this->Sources.insert(this->Sources.end(), selection.begin(), selection.end());
     }
-  else if(this->GraphCut->GetPixelDimensionality() == 3)
+  else if(this->radBackground->isChecked())
     {
-    ITKImagetoVTKImage<ColorImageType>(static_cast<ImageGraphCut<ColorImageType>* >(this->GraphCut)->GetMaskedOutput(), VTKSegmentMask);
-    }
-  else if(this->GraphCut->GetPixelDimensionality() == 5)
-    {
-    ITKImagetoVTKImage<RGBDIImageType>(static_cast<ImageGraphCut<RGBDIImageType>* >(this->GraphCut)->GetMaskedOutput(), VTKSegmentMask);
+    this->Sinks.insert(this->Sinks.end(), selection.begin(), selection.end());
     }
   else
     {
-    std::cerr << "This type of image (" << this->GraphCut->GetPixelDimensionality() << ") cannot be displayed!" << std::endl;
+    std::cerr << "Something is wrong - either Foreground or Background selection mode must be selected." << std::endl;
     exit(-1);
     }
-
-  // Remove the old output, set the new output and refresh everything
-  this->ResultActor = vtkSmartPointer<vtkImageActor>::New();
-  this->ResultActor->SetInput(VTKSegmentMask);
-  this->RightRenderer->RemoveAllViewProps();
-  this->RightRenderer->AddActor(ResultActor);
-  this->RightRenderer->ResetCamera();
+    
+  unsigned char green[3] = {0, 255, 0};
+  unsigned char red[3] = {255, 0, 0};
+  
+  Helpers::SetPixels(this->SourceSinkImageData, this->Sources, green);
+  Helpers::SetPixels(this->SourceSinkImageData, this->Sinks, red);
+  
+  std::cout << this->Sources.size() << " sources." << std::endl;
+  std::cout << this->Sinks.size() << " sinks." << std::endl;
+  
+  this->LeftSourceSinkImageSliceMapper->Modified();
+  this->RightSourceSinkImageSliceMapper->Modified();
+  
   this->Refresh();
-
-  this->progressBar->hide();
 }
-*/
 
 // Display segmented image with transparent background pixels
 void MainWindow::StopProgressSlot()
 {
   // When the ProgressThread emits the StopProgressSignal, we need to display the result of the segmentation
 
-  // Convert the segmentation mask to a binary VTK image
-  vtkSmartPointer<vtkImageData> VTKSegmentMask =
-    vtkSmartPointer<vtkImageData>::New();
-  Helpers::ITKScalarImagetoVTKImage(this->GraphCut.GetSegmentMask(), VTKSegmentMask);
-
-  // Convert the image into a VTK image for display
-  vtkSmartPointer<vtkImageData> VTKImage =
-    vtkSmartPointer<vtkImageData>::New();
-  Helpers::ITKImagetoVTKImage(this->GraphCut.GetMaskedOutput(), VTKImage);
-
-  vtkSmartPointer<vtkImageData> VTKMaskedImage =
-    vtkSmartPointer<vtkImageData>::New();
-  Helpers::MaskImage(VTKImage, VTKSegmentMask, VTKMaskedImage);
-
-  // Remove the old output, set the new output and refresh everything
-  //this->ResultActor = vtkSmartPointer<vtkImageActor>::New();
-  this->ResultImageSliceMapper->SetInputConnection(VTKMaskedImage->GetProducerPort());
-  this->ResultImageSlice->SetMapper(this->ResultImageSliceMapper);
-  this->RightRenderer->RemoveAllViewProps();
-  this->RightRenderer->AddActor(this->ResultImageSlice);
-  this->RightRenderer->ResetCamera();
-  this->Refresh();
+  DisplaySegmentationResult();
 
   this->progressBar->hide();
 }
@@ -292,27 +336,27 @@ void MainWindow::sldHistogramBins_valueChanged()
 
 void MainWindow::on_radForeground_clicked()
 {
-  this->GraphCutStyle->SetInteractionModeToForeground();
+  //this->LeftInteractorStyle->SetInteractionModeToForeground();
 }
 
 void MainWindow::on_radBackground_clicked()
 {
-  this->GraphCutStyle->SetInteractionModeToBackground();
+  //this->LeftInteractorStyle->SetInteractionModeToBackground();
 }
 
 void MainWindow::on_btnClearSelections_clicked()
 {
-  this->GraphCutStyle->ClearSelections();
+  this->LeftInteractorStyle->ClearSelections();
 }
 
 void MainWindow::on_btnClearForeground_clicked()
 {
-  this->GraphCutStyle->ClearForegroundSelections();
+  this->LeftInteractorStyle->ClearForegroundSelections();
 }
 
 void MainWindow::on_btnClearBackground_clicked()
 {
-  this->GraphCutStyle->ClearBackgroundSelections();
+  this->LeftInteractorStyle->ClearBackgroundSelections();
 }
 
 void MainWindow::on_btnSaveSelections_clicked()
@@ -328,7 +372,8 @@ void MainWindow::on_btnSaveSelections_clicked()
   UnsignedCharScalarImageType::Pointer foregroundImage = UnsignedCharScalarImageType::New();
   foregroundImage->SetRegions(this->ImageRegion);
   foregroundImage->Allocate();
-  Helpers::IndicesToBinaryImage(this->GraphCutStyle->GetForegroundSelection(), foregroundImage);
+  //Helpers::IndicesToBinaryImage(this->LeftInteractorStyle->GetForegroundSelection(), foregroundImage);
+  Helpers::IndicesToBinaryImage(this->Sources, foregroundImage);
 
   typedef  itk::ImageFileWriter< UnsignedCharScalarImageType  > WriterType;
   WriterType::Pointer writer = WriterType::New();
@@ -339,7 +384,8 @@ void MainWindow::on_btnSaveSelections_clicked()
   UnsignedCharScalarImageType::Pointer backgroundImage = UnsignedCharScalarImageType::New();
   backgroundImage->SetRegions(this->ImageRegion);
   backgroundImage->Allocate();
-  Helpers::IndicesToBinaryImage(this->GraphCutStyle->GetBackgroundSelection(), backgroundImage);
+  //Helpers::IndicesToBinaryImage(this->LeftInteractorStyle->GetBackgroundSelection(), backgroundImage);
+  Helpers::IndicesToBinaryImage(this->Sinks, backgroundImage);
 
   writer->SetFileName(backgroundFilename);
   writer->SetInput(backgroundImage);
@@ -408,8 +454,10 @@ void MainWindow::on_btnCut_clicked()
 
   // Setup the graph cut from the GUI and the scribble selection
   this->GraphCut.SetLambda(ComputeLambda());
-  this->GraphCut.SetSources(this->GraphCutStyle->GetForegroundSelection());
-  this->GraphCut.SetSinks(this->GraphCutStyle->GetBackgroundSelection());
+  this->GraphCut.SetSources(this->Sources);
+  this->GraphCut.SetSinks(this->Sinks);
+  //this->GraphCut.SetSources(this->LeftInteractorStyle->GetForegroundSelection());
+  //this->GraphCut.SetSinks(this->LeftInteractorStyle->GetBackgroundSelection());
 
   // Setup and start the actual cut computation in a different thread
   this->SegmentationThread.GraphCut = &(this->GraphCut);
@@ -476,7 +524,7 @@ void MainWindow::OpenFile()
   // path = myFile.absolutePath().toStdString()
   
   // Clear the scribbles
-  this->GraphCutStyle->ClearSelections();
+  //this->LeftInteractorStyle->ClearSelections();
 
   // Read file
   itk::ImageFileReader<ImageType>::Pointer reader = itk::ImageFileReader<ImageType>::New();
@@ -488,37 +536,46 @@ void MainWindow::OpenFile()
 
   this->GraphCut.SetImage(reader->GetOutput());
 
-  // Convert the ITK image to a VTK image and display it
-  vtkSmartPointer<vtkImageData> VTKImage = vtkSmartPointer<vtkImageData>::New();
-  Helpers::ITKImagetoVTKImage(reader->GetOutput(), VTKImage);
-
+  // Clear everything
   this->LeftRenderer->RemoveAllViewProps();
+  this->RightRenderer->RemoveAllViewProps();
+  this->Sources.clear();
+  this->Sinks.clear();
 
-  this->OriginalImageSliceMapper->SetInputConnection(VTKImage->GetProducerPort());
+  // Convert the ITK image to a VTK image and display it
+  Helpers::ITKImagetoVTKImage(reader->GetOutput(), this->OriginalImageData);
+
+  this->OriginalImageSliceMapper->SetInputConnection(this->OriginalImageData->GetProducerPort());
   this->OriginalImageSlice->SetMapper(this->OriginalImageSliceMapper);
-  //this->OriginalImageSlice->InterpolateOff();
-  this->GraphCutStyle->InitializeTracer(this->OriginalImageSlice);
 
+  this->LeftRenderer->AddViewProp(this->OriginalImageSlice);
   this->LeftRenderer->ResetCamera();
-  this->Refresh();
-
-  // Setup the scribble style
-  if(this->radBackground->isChecked())
-    {
-    this->GraphCutStyle->SetInteractionModeToBackground();
-    }
-  else
-    {
-    this->GraphCutStyle->SetInteractionModeToForeground();
-    }
+  
+  // Setup the scribble canvas
+  Helpers::SetImageSize(this->OriginalImageData, this->SourceSinkImageData);
+  Helpers::CreateTransparentImage(this->SourceSinkImageData);
+  
+  this->LeftSourceSinkImageSliceMapper->SetInputConnection(this->SourceSinkImageData->GetProducerPort());
+  this->LeftSourceSinkImageSlice->SetMapper(this->LeftSourceSinkImageSliceMapper);
+  
+  this->RightSourceSinkImageSliceMapper->SetInputConnection(this->SourceSinkImageData->GetProducerPort());
+  this->RightSourceSinkImageSlice->SetMapper(this->RightSourceSinkImageSliceMapper);
     
-  //std::cout << "Exit OpenFile()" << std::endl;
+  this->RightRenderer->AddViewProp(this->RightSourceSinkImageSlice); // If this is called, the image disappears in the *left* renderer???
+  this->RightRenderer->ResetCamera();
+    
+  this->LeftInteractorStyle->InitializeTracer(this->LeftSourceSinkImageSlice); // This also adds the ImageSlice to the renderers
+  //this->LeftRenderer->AddViewProp(this->LeftSourceSinkImageSlice); // This is done inside the InitializeTracer call
+  
+  this->Refresh();
 }
 
 void MainWindow::Refresh()
 {
-  //this->LeftRenderer->Render();
-  //this->RightRenderer->Render();
+  std::cout << "Refresh()" << std::endl;
+  //this->SourceSinkImageSliceMapper->Render();
+  //this->SourceSinkImageSliceMapper->Modified();
+  
   this->qvtkWidgetRight->GetRenderWindow()->Render();
   this->qvtkWidgetLeft->GetRenderWindow()->Render();
   this->qvtkWidgetRight->GetInteractor()->Render();

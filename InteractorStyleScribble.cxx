@@ -15,7 +15,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "vtkScribbleInteractorStyle.h"
+#include "InteractorStyleScribble.h"
 
 // VTK
 #include <vtkActor.h>
@@ -39,15 +39,29 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // Custom
 #include "Helpers.h"
 
-vtkStandardNewMacro(vtkScribbleInteractorStyle);
+vtkStandardNewMacro(InteractorStyleScribble);
 
-vtkScribbleInteractorStyle::vtkScribbleInteractorStyle()
+void InteractorStyleScribble::OnLeftButtonDown()
 {
+  vtkInteractorStyleImage::OnMiddleButtonDown();
+}
+
+void InteractorStyleScribble::OnLeftButtonUp()
+{
+  vtkInteractorStyleImage::OnMiddleButtonUp();
+}
+
+
+InteractorStyleScribble::InteractorStyleScribble()
+{
+  this->ScribbleEvent = vtkCommand::UserEvent + 1;
+  
   // Initializations
   this->Tracer = vtkSmartPointer<vtkImageTracerWidget>::New();
   this->Tracer->GetLineProperty()->SetLineWidth(5);
   this->Tracer->HandleMiddleMouseButtonOff();
 
+  /*
   // Foreground
   this->ForegroundSelectionPolyData = vtkSmartPointer<vtkPolyData>::New();
   this->ForegroundSelectionMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
@@ -65,14 +79,21 @@ vtkScribbleInteractorStyle::vtkScribbleInteractorStyle()
   this->BackgroundSelectionActor->GetProperty()->SetLineWidth(4);
   this->BackgroundSelectionActor->GetProperty()->SetColor(1,0,0);
   this->BackgroundSelectionMapper->SetInputConnection(this->BackgroundSelectionPolyData->GetProducerPort());
-
+  */
+  
   // Update the selection when the EndInteraction event is fired.
-  this->Tracer->AddObserver(vtkCommand::EndInteractionEvent, this, &vtkScribbleInteractorStyle::CatchWidgetEvent);
+  this->Tracer->AddObserver(vtkCommand::EndInteractionEvent, this, &InteractorStyleScribble::CatchWidgetEvent);
 
   // Defaults
-  this->SelectionType = FOREGROUND;
+  //this->SelectionType = FOREGROUND;
 }
 
+std::vector<itk::Index<2> > InteractorStyleScribble::GetSelection()
+{
+  return this->Selection;
+}
+
+/*
 std::vector<itk::Index<2> > vtkScribbleInteractorStyle::GetForegroundSelection()
 {
   return this->ForegroundSelection;
@@ -82,24 +103,29 @@ std::vector<itk::Index<2> > vtkScribbleInteractorStyle::GetBackgroundSelection()
 {
   return this->BackgroundSelection;
 }
+*/
 
+/*
 int vtkScribbleInteractorStyle::GetSelectionType()
 {
   return this->SelectionType;
 }
+*/
 
-void vtkScribbleInteractorStyle::InitializeTracer(vtkImageSlice* imageSlice)
+void InteractorStyleScribble::InitializeTracer(vtkImageSlice* imageSlice)
 {
-  std::cout << "Enter InitializeTracer()" << std::endl;
-  this->CurrentRenderer->AddActor(imageSlice);
+  //std::cout << "Enter InitializeTracer()" << std::endl;
+  //this->CurrentRenderer->AddActor(imageSlice);
+  this->CurrentRenderer->AddViewProp(imageSlice);
   this->Tracer->SetInteractor(this->Interactor);
   this->Tracer->SetViewProp(imageSlice);
   this->Tracer->ProjectToPlaneOn();
 
   this->Tracer->On();
-  std::cout << "Exit InitializeTracer()" << std::endl;
+  //std::cout << "Exit InitializeTracer()" << std::endl;
 }
 
+/*
 void vtkScribbleInteractorStyle::SetInteractionModeToForeground()
 {
   this->Tracer->GetLineProperty()->SetColor(0,1,0);
@@ -111,58 +137,63 @@ void vtkScribbleInteractorStyle::SetInteractionModeToBackground()
   this->Tracer->GetLineProperty()->SetColor(1,0,0);
   this->SelectionType = BACKGROUND;
 }
+*/
 
-void vtkScribbleInteractorStyle::CatchWidgetEvent(vtkObject* caller, long unsigned int eventId, void* callData)
+void InteractorStyleScribble::CatchWidgetEvent(vtkObject* caller, long unsigned int eventId, void* callData)
 {
   std::cout << "Enter CatchWidgetEvent()" << std::endl;
+  
   // Get the path from the tracer and append it to the appropriate selection
-
-  //this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->AddActor(BackgroundSelectionActor);
-  //this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->AddActor(ForegroundSelectionActor);
-  this->CurrentRenderer->AddActor(BackgroundSelectionActor);
-  this->CurrentRenderer->AddActor(ForegroundSelectionActor);
+  //this->CurrentRenderer->AddActor(BackgroundSelectionActor);
+  //this->CurrentRenderer->AddActor(ForegroundSelectionActor);
 
   // Get the tracer object (this is the object that triggered this event)
-  vtkImageTracerWidget* tracer =
-    static_cast<vtkImageTracerWidget*>(caller);
+  vtkImageTracerWidget* tracer = static_cast<vtkImageTracerWidget*>(caller);
 
   // Get the points in the selection
   vtkSmartPointer<vtkPolyData> path = vtkSmartPointer<vtkPolyData>::New();
   tracer->GetPath(path);
 
   // Create a filter which will be used to combine the most recent selection with previous selections
-  vtkSmartPointer<vtkAppendPolyData> appendFilter = vtkSmartPointer<vtkAppendPolyData>::New();
-  appendFilter->AddInputConnection(path->GetProducerPort());
+  //vtkSmartPointer<vtkAppendPolyData> appendFilter = vtkSmartPointer<vtkAppendPolyData>::New();
+  //appendFilter->AddInputConnection(path->GetProducerPort());
 
-  std::vector<itk::Index<2> > newPoints = Helpers::PolyDataToPixelList(path);
+  //std::vector<itk::Index<2> > newPoints = Helpers::PolyDataToPixelList(path);
+  this->Selection = Helpers::PolyDataToPixelList(path);
   //std::cout << newPoints.size() << " new points." << std::endl;
 
+  /*
   // If we are in foreground mode, add the current selection to the foreground. Else, add it to the background.
   if(this->SelectionType == vtkScribbleInteractorStyle::FOREGROUND)
     {
-    appendFilter->AddInputConnection(this->ForegroundSelectionPolyData->GetProducerPort());
-    appendFilter->Update();
-    this->ForegroundSelectionPolyData->ShallowCopy(appendFilter->GetOutput());
+    //appendFilter->AddInputConnection(this->ForegroundSelectionPolyData->GetProducerPort());
+    //appendFilter->Update();
+    //this->ForegroundSelectionPolyData->ShallowCopy(appendFilter->GetOutput());
 
     this->ForegroundSelection.insert(this->ForegroundSelection.end(), newPoints.begin(), newPoints.end());
     }
   else if(this->SelectionType == vtkScribbleInteractorStyle::BACKGROUND)
     {
-    appendFilter->AddInputConnection(this->BackgroundSelectionPolyData->GetProducerPort());
-    appendFilter->Update();
-    this->BackgroundSelectionPolyData->ShallowCopy(appendFilter->GetOutput());
+    //appendFilter->AddInputConnection(this->BackgroundSelectionPolyData->GetProducerPort());
+    //appendFilter->Update();
+    //this->BackgroundSelectionPolyData->ShallowCopy(appendFilter->GetOutput());
 
     this->BackgroundSelection.insert(this->BackgroundSelection.end(), newPoints.begin(), newPoints.end());
     }
-
-  //std::cout << this->ForegroundSelection.size() << " foreground poitns." << std::endl;
-  //std::cout << this->BackgroundSelection.size() << " background poitns." << std::endl;
+  else
+    {
+    std::cerr << "SelectionType must either be FOREGROUND or BACKGROUND!" << std::endl;
+    exit(-1);
+    }
+  */
+  //std::cout << this->ForegroundSelection.size() << " foreground points." << std::endl;
+  //std::cout << this->BackgroundSelection.size() << " background points." << std::endl;
 
   // "Clear" the tracer. We must rely on the foreground and background actors to maintain the appropriate colors.
   // If we did not clear the tracer, if we draw a foreground stroke (green) then switch to background mode, the last stoke would turn
   // red until we finished drawing the next stroke.
-  vtkSmartPointer<vtkPoints> emptyPoints =
-    vtkSmartPointer<vtkPoints>::New();
+  
+  vtkSmartPointer<vtkPoints> emptyPoints = vtkSmartPointer<vtkPoints>::New();
   emptyPoints->InsertNextPoint(0, 0, 0);
   emptyPoints->InsertNextPoint(0, 0, 0);
 
@@ -170,16 +201,19 @@ void vtkScribbleInteractorStyle::CatchWidgetEvent(vtkObject* caller, long unsign
   this->Tracer->Modified();
 
   this->Refresh();
+    
+  this->InvokeEvent(this->ScribbleEvent, NULL);
+
   std::cout << "Exit CatchWidgetEvent()" << std::endl;
 };
 
-void vtkScribbleInteractorStyle::Refresh()
+void InteractorStyleScribble::Refresh()
 {
   this->CurrentRenderer->Render();
   this->Interactor->GetRenderWindow()->Render();
 }
 
-void vtkScribbleInteractorStyle::ClearSelections()
+void InteractorStyleScribble::ClearSelections()
 {
 
   ClearForegroundSelections();
@@ -188,7 +222,7 @@ void vtkScribbleInteractorStyle::ClearSelections()
 
 }
 
-void vtkScribbleInteractorStyle::ClearForegroundSelections()
+void InteractorStyleScribble::ClearForegroundSelections()
 {
   /*
    // I thought this would work...
@@ -203,7 +237,7 @@ void vtkScribbleInteractorStyle::ClearForegroundSelections()
 
   // This seems like a silly way of emptying the polydatas...
 
-
+/*
   vtkSmartPointer<vtkPolyData> empytPolyData = vtkSmartPointer<vtkPolyData>::New();
   this->ForegroundSelectionPolyData->ShallowCopy(empytPolyData);
   
@@ -213,10 +247,12 @@ void vtkScribbleInteractorStyle::ClearForegroundSelections()
   std::cout << "this->ForegroundSelection now has " << this->ForegroundSelection.size() << " points." << std::endl;
   
   this->Refresh();
+  */
 }
   
-void vtkScribbleInteractorStyle::ClearBackgroundSelections()
+void InteractorStyleScribble::ClearBackgroundSelections()
 {
+  /*
   vtkSmartPointer<vtkPolyData> empytPolyData = vtkSmartPointer<vtkPolyData>::New();
   this->BackgroundSelectionPolyData->ShallowCopy(empytPolyData);
   
@@ -226,6 +262,5 @@ void vtkScribbleInteractorStyle::ClearBackgroundSelections()
   std::cout << "this->BackgroundSelection now has " << this->BackgroundSelection.size() << " points." << std::endl;
   
   this->Refresh();
+  */
 }
-
-

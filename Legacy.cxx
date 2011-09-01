@@ -680,3 +680,43 @@ void ImageGraphCut::CreateFullHistogramSamples()
   this->BackgroundHistogram = BackgroundHistogramFilter->GetOutput();
 
 }
+
+
+/*
+ // Display segmented image with black background pixels
+void Form::StopProgressSlot()
+{
+  // When the ProgressThread emits the StopProgressSignal, we need to display the result of the segmentation
+
+  // Convert the masked image into a VTK image for display
+  vtkSmartPointer<vtkImageData> VTKSegmentMask =
+    vtkSmartPointer<vtkImageData>::New();
+  if(this->GraphCut->GetPixelDimensionality() == 1)
+    {
+    ITKImagetoVTKImage<GrayscaleImageType>(static_cast<ImageGraphCut<GrayscaleImageType>* >(this->GraphCut)->GetMaskedOutput(), VTKSegmentMask);
+    }
+  else if(this->GraphCut->GetPixelDimensionality() == 3)
+    {
+    ITKImagetoVTKImage<ColorImageType>(static_cast<ImageGraphCut<ColorImageType>* >(this->GraphCut)->GetMaskedOutput(), VTKSegmentMask);
+    }
+  else if(this->GraphCut->GetPixelDimensionality() == 5)
+    {
+    ITKImagetoVTKImage<RGBDIImageType>(static_cast<ImageGraphCut<RGBDIImageType>* >(this->GraphCut)->GetMaskedOutput(), VTKSegmentMask);
+    }
+  else
+    {
+    std::cerr << "This type of image (" << this->GraphCut->GetPixelDimensionality() << ") cannot be displayed!" << std::endl;
+    exit(-1);
+    }
+
+  // Remove the old output, set the new output and refresh everything
+  this->ResultActor = vtkSmartPointer<vtkImageActor>::New();
+  this->ResultActor->SetInput(VTKSegmentMask);
+  this->RightRenderer->RemoveAllViewProps();
+  this->RightRenderer->AddActor(ResultActor);
+  this->RightRenderer->ResetCamera();
+  this->Refresh();
+
+  this->progressBar->hide();
+}
+*/

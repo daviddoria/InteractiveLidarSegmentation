@@ -24,7 +24,8 @@ add_library(MaxFlow graph.cpp maxflow.cpp)
 ADD_EXECUTABLE(InteractiveLidarSegmentation main.cpp MainWindow.cpp
 Helpers.cpp
 Difference.cpp
-vtkScribbleInteractorStyle.cxx
+InteractorStyleScribble.cxx
+InteractorStyleImageNoLevel.cxx
 ImageGraphCut.cxx
 ${MOCSrcs} ${UISrcs})
 TARGET_LINK_LIBRARIES(InteractiveLidarSegmentation vtkHybrid vtkWidgets

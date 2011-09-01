@@ -176,7 +176,7 @@ void MaskImage(vtkSmartPointer<vtkImageData> VTKImage, vtkSmartPointer<vtkImageD
 
 
 // Convert single channel ITK image to VTK image
-void ITKScalarImagetoVTKImage(MaskImageType::Pointer image, vtkImageData* outputImage)
+void ITKScalarImageToVTKImage(MaskImageType::Pointer image, vtkImageData* outputImage)
 {
   //std::cout << "ITKScalarImagetoVTKImage()" << std::endl;
   
@@ -332,11 +332,11 @@ void InvertBinaryImage(UnsignedCharScalarImageType::Pointer image, UnsignedCharS
 
 std::vector<itk::Index<2> > PolyDataToPixelList(vtkPolyData* polydata)
 {
-  std::cout << "Enter PolyDataToPixelList()" << std::endl;
-  std::cout << "There are " << polydata->GetNumberOfPoints() << " points." << std::endl;
+  //std::cout << "Enter PolyDataToPixelList()" << std::endl;
+  //std::cout << "There are " << polydata->GetNumberOfPoints() << " points." << std::endl;
   
   // Convert vtkPoints to indices
-  std::cout << "Converting vtkPoints to indices..." << std::endl;
+  //std::cout << "Converting vtkPoints to indices..." << std::endl;
   std::vector<itk::Index<2> > linePoints;
   for(vtkIdType i = 0; i < polydata->GetNumberOfPoints(); i++)
     {
@@ -355,11 +355,11 @@ std::vector<itk::Index<2> > PolyDataToPixelList(vtkPolyData* polydata)
     }
     
   // Compute the indices between every pair of points
-  std::cout << "Computing the indices between every pair of points..." << std::endl;
+  //std::cout << "Computing the indices between every pair of points..." << std::endl;
   std::vector<itk::Index<2> > allIndices;
   for(unsigned int linePointId = 1; linePointId < linePoints.size(); linePointId++)
     {
-    std::cout << "Getting the indices..." << std::endl;
+    //std::cout << "Getting the indices..." << std::endl;
     itk::Index<2> index0 = linePoints[linePointId-1];
     itk::Index<2> index1 = linePoints[linePointId];
     /*
@@ -393,10 +393,10 @@ std::vector<itk::Index<2> > PolyDataToPixelList(vtkPolyData* polydata)
       allIndices.push_back(index0 + offsets[i]);
       }
     */
-    std::cout << "Constructing the line..." << std::endl;
+    //std::cout << "Constructing the line..." << std::endl;
     itk::BresenhamLine<2> line;
     std::vector<itk::Index<2> > indices = line.BuildLine(index0, index1);
-    std::cout << "Saving indices..." << std::endl;
+    //std::cout << "Saving indices..." << std::endl;
     for(unsigned int i = 0; i < indices.size(); i++)
       {
       allIndices.push_back(indices[i]);
@@ -404,9 +404,56 @@ std::vector<itk::Index<2> > PolyDataToPixelList(vtkPolyData* polydata)
       
     } // end for loop over line segments
 
-  std::cout << "Exit PolyDataToPixelList()" << std::endl;
+  //std::cout << "Exit PolyDataToPixelList()" << std::endl;
   return allIndices;
 }
 
+void CreateTransparentImage(vtkImageData* VTKImage)
+{
+  VTKImage->SetNumberOfScalarComponents(4);
+  VTKImage->SetScalarTypeToUnsignedChar();
+  VTKImage->AllocateScalars();
+  
+  int* dims = VTKImage->GetDimensions();
+  // int dims[3]; // can't do this
+  for (int y = 0; y < dims[1]; y++)
+    {
+    for (int x = 0; x < dims[0]; x++)
+      {
+      unsigned char* outputPixel = static_cast<unsigned char*>(VTKImage->GetScalarPointer(x,y,0));
+      unsigned char color = 255;
+      outputPixel[0] = color;
+      outputPixel[1] = color;
+      outputPixel[2] = color;
+
+      outputPixel[3] = 0;
+      //outputPixel[3] = 255;
+      
+      } // end x loop
+    } // end y loop
+}
+
+void SetPixels(vtkImageData* VTKImage, std::vector<itk::Index<2> > pixels, unsigned char color[3])
+{
+  for(unsigned int i = 0; i < pixels.size(); ++i)
+    {
+    unsigned char* pixel = static_cast<unsigned char*>(VTKImage->GetScalarPointer(pixels[i][0],pixels[i][1],0));
+    pixel[0] = color[0];
+    pixel[1] = color[1];
+    pixel[2] = color[2];
+    // Make sure the pixel is not transparent
+    if(VTKImage->GetNumberOfScalarComponents() == 4)
+      {
+      pixel[3] = 255;
+      }
+    }
+  
+}
+
+void SetImageSize(vtkImageData* input, vtkImageData* output)
+{
+  int* dims = input->GetDimensions();
+  output->SetDimensions(dims); 
+}
 
 } // end namespace

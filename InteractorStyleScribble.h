@@ -21,8 +21,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * the selections.
 */
 
-#ifndef vtkScribbleInteractorStyle_H
-#define vtkScribbleInteractorStyle_H
+#ifndef InteractorStyleScribble_H
+#define InteractorStyleScribble_H
 
 #include <vtkImageTracerWidget.h>
 #include <vtkInteractorStyleImage.h> // superclass
@@ -34,22 +34,25 @@ class vtkImageSlice;
 class vtkImageData;
 class vtkPolyData;
 
-class vtkScribbleInteractorStyle : public vtkInteractorStyleImage
+class InteractorStyleScribble : public vtkInteractorStyleImage
 {
 public:
-  static vtkScribbleInteractorStyle* New();
-  vtkTypeMacro(vtkScribbleInteractorStyle, vtkInteractorStyleImage);
+  static InteractorStyleScribble* New();
+  vtkTypeMacro(InteractorStyleScribble, vtkInteractorStyleImage);
 
-  vtkScribbleInteractorStyle();
+  InteractorStyleScribble();
 
-  int GetSelectionType();
-  enum SELECTION {FOREGROUND, BACKGROUND};
+  void OnLeftButtonDown();
+  void OnLeftButtonUp();
+  //int GetSelectionType();
+  //enum SELECTION {FOREGROUND, BACKGROUND};
 
-  void SetInteractionModeToForeground();
-  void SetInteractionModeToBackground();
+  //void SetInteractionModeToForeground();
+  //void SetInteractionModeToBackground();
 
-  std::vector<itk::Index<2> > GetForegroundSelection();
-  std::vector<itk::Index<2> > GetBackgroundSelection();
+  //std::vector<itk::Index<2> > GetForegroundSelection();
+  //std::vector<itk::Index<2> > GetBackgroundSelection();
+  std::vector<itk::Index<2> > GetSelection();
 
   // Empty both the foreground and background selection
   void ClearSelections();
@@ -61,6 +64,7 @@ public:
   // Connect the tracer to the interactor, etc.
   void InitializeTracer(vtkImageSlice* imageSlice);
 
+  unsigned int ScribbleEvent;
 private:
   void Refresh();
 
@@ -74,18 +78,8 @@ private:
   vtkSmartPointer<vtkImageTracerWidget> Tracer;
 
   // Keep track of the pixels the user selected.
-  std::vector<itk::Index<2> > ForegroundSelection;
-  std::vector<itk::Index<2> > BackgroundSelection;
-
-  // Data, mapper, and actor for the selections
-  vtkSmartPointer<vtkPolyData> ForegroundSelectionPolyData;
-  vtkSmartPointer<vtkPolyData> BackgroundSelectionPolyData;
-
-  vtkSmartPointer<vtkPolyDataMapper> BackgroundSelectionMapper;
-  vtkSmartPointer<vtkPolyDataMapper> ForegroundSelectionMapper;
-
-  vtkSmartPointer<vtkActor> BackgroundSelectionActor;
-  vtkSmartPointer<vtkActor> ForegroundSelectionActor;
+  std::vector<itk::Index<2> > Selection;
+  //std::vector<itk::Index<2> > BackgroundSelection;
 
 };
 

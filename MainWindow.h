@@ -30,7 +30,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Custom
 #include "ProgressThread.h"
-#include "vtkScribbleInteractorStyle.h"
+class InteractorStyleScribble;
+class InteractorStyleImageNoLevel;
 
 // Forward declarations
 class vtkImageSlice;
@@ -73,25 +74,35 @@ public slots:
   
 protected:
 
+  void DisplaySegmentationResult();
+  
   // A class to do the main computations in a separate thread so we can display a marquee progress bar.
   ProgressThread<ImageType> SegmentationThread;
 
   // Compute lambda by multiplying the percentage set by the slider by the MaxLambda set in the text box.
   float ComputeLambda();
 
-  // Our scribble interactor style
-  vtkSmartPointer<vtkScribbleInteractorStyle> GraphCutStyle;
-
-  // The input and output image actors
+  // Left pane
+  vtkSmartPointer<InteractorStyleScribble> LeftInteractorStyle;
   vtkSmartPointer<vtkImageSliceMapper> OriginalImageSliceMapper;
-  vtkSmartPointer<vtkImageSliceMapper> ResultImageSliceMapper;
   vtkSmartPointer<vtkImageSlice> OriginalImageSlice;
-  vtkSmartPointer<vtkImageSlice> ResultImageSlice;
-
-  // The renderers
   vtkSmartPointer<vtkRenderer> LeftRenderer;
+  vtkSmartPointer<vtkImageData> OriginalImageData;
+  
+  // Right pane
+  vtkSmartPointer<vtkImageSliceMapper> ResultImageSliceMapper;
+  vtkSmartPointer<vtkImageSlice> ResultImageSlice;
   vtkSmartPointer<vtkRenderer> RightRenderer;
-
+  vtkSmartPointer<InteractorStyleImageNoLevel> RightInteractorStyle;
+  
+  // Both panes
+  vtkSmartPointer<vtkImageData> SourceSinkImageData;
+  vtkSmartPointer<vtkImageSliceMapper> LeftSourceSinkImageSliceMapper;
+  vtkSmartPointer<vtkImageSlice> LeftSourceSinkImageSlice;
+  
+  vtkSmartPointer<vtkImageSliceMapper> RightSourceSinkImageSliceMapper;
+  vtkSmartPointer<vtkImageSlice> RightSourceSinkImageSlice;
+  
   // Refresh both renderers and render windows
   void Refresh();
 
@@ -101,11 +112,17 @@ protected:
   // Allows the background color to be changed
   double BackgroundColor[3];
 
-  // Allows the image to be flipped so that it is "right side up"
-  double CameraUp[3];
-
   // We set this when the image is opeend. We sometimes need to know how big the image is.
   itk::ImageRegion<2> ImageRegion;
+  
+  void ScribbleEventHandler(vtkObject* caller, long unsigned int eventId, void* callData);
+  
+  std::vector<itk::Index<2> > Sources;
+  std::vector<itk::Index<2> > Sinks;
+  
+  bool Flipped;
+  void SetCameraPosition1();
+  void SetCameraPosition2();
 };
 
 #endif
