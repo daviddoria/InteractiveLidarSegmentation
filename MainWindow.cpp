@@ -356,9 +356,12 @@ void MainWindow::on_btnLoadSelections_clicked()
 void MainWindow::on_btnCut_clicked()
 {
   this->GraphCut.Debug = this->chkDebug->isChecked();
+  this->GraphCut.SecondStep = this->chkSecondStep->isChecked();
   
   this->GraphCut.IncludeDepthInHistogram = this->chkDepthHistogram->isChecked();
  
+  this->GraphCut.BackgroundThreshold = this->txtBackgroundThreshold->text().toDouble();
+  
   if(this->GraphCut.DifferenceFunction)
     {
     delete this->GraphCut.DifferenceFunction;

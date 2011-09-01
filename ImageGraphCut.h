@@ -50,8 +50,6 @@ class ImageGraphCut
 {
 public:
   ImageGraphCut();
-  //void SetSources(vtkPolyData* sources);
-  //void SetSinks(vtkPolyData* sinks);
 
   Difference* DifferenceFunction;
     
@@ -88,6 +86,9 @@ public:
   void SetSources(std::vector<itk::Index<2> > sources);
   void SetSinks(std::vector<itk::Index<2> > sinks);
 
+  void SetHardSources(const std::vector<itk::Index<2> >& pixels);
+  void SetHardSinks(const std::vector<itk::Index<2> >& pixels);
+  
   // Get the output of the segmentation
   MaskImageType::Pointer GetSegmentMask();
 
@@ -100,6 +101,11 @@ public:
   bool Debug;
 
   bool IncludeDepthInHistogram;
+  unsigned int NumberOfHistogramComponents;
+  
+  bool SecondStep;
+  
+  float BackgroundThreshold;
 protected:
 
   void CreateGraphNodes();

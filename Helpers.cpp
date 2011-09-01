@@ -1,12 +1,90 @@
 #include "Helpers.h"
 
+// ITK
+#include "itkBresenhamLine.h"
 #include "itkImageRegionIterator.h"
-#include "itkVectorMagnitudeImageFilter.h"
 #include "itkRescaleIntensityImageFilter.h"
+#include "itkVectorMagnitudeImageFilter.h"
+
+// VTK
+#include <vtkPolyData.h>
 
 namespace Helpers
 {
 
+unsigned int CountNonZeroPixels(MaskImageType::Pointer image)
+{
+  unsigned int counter = 0;
+  itk::ImageRegionIterator<MaskImageType> imageIterator(image, image->GetLargestPossibleRegion());
+
+  while(!imageIterator.IsAtEnd())
+    {
+    if(imageIterator.Get()) // If the current pixel is in question
+      {
+      counter++;
+      }
+    ++imageIterator;
+    }
+  return counter;
+}
+      
+bool FindClosestNonZeroPixel(MaskImageType::Pointer image, itk::Index<2> queryPixel, unsigned int radiusValue, itk::Index<2>& returnPixel)
+{
+  itk::Index<2> zeroIndex;
+  zeroIndex.Fill(0);
+  
+  ImageType::SizeType radius;
+  radius.Fill(radiusValue);
+  
+  itk::Size<2> size;
+  size.Fill(1);
+  itk::ImageRegion<2> region(queryPixel,size);
+  
+  itk::ConstNeighborhoodIterator<MaskImageType> iterator(radius, image, region);
+  
+  unsigned int length = (radiusValue*2)+1;
+  while(!iterator.IsAtEnd())
+    {
+    for(unsigned int i = 0; i < length*length; i++)
+      {
+      if(iterator.GetIndex(i) == queryPixel) // Skip the pixel we are currently at
+	{
+	continue;
+	}
+      bool inBounds;
+      ImageType::PixelType pixel = iterator.GetPixel(i, inBounds);
+      if(pixel != 0) // We found a non-zero pixel
+	{
+	returnPixel = iterator.GetIndex(i);
+	return true;
+	}
+ 
+      }
+    ++iterator;
+    }
+    
+  return false;
+}
+
+itk::Index<2> FindClosestNonZeroPixel(MaskImageType::Pointer image, itk::Index<2> queryPixel)
+{
+  // Look in successively bigger neighborhoods
+  for(unsigned int radiusValue = 1; radiusValue < std::max(image->GetLargestPossibleRegion().GetSize()[0], image->GetLargestPossibleRegion().GetSize()[1]); ++radiusValue)
+    {
+    //std::cout << "Radius: " << radiusValue << std::endl;
+    itk::Index<2> closestPixel;
+    bool success = FindClosestNonZeroPixel(image, queryPixel, radiusValue, closestPixel);
+    if(success)
+      {
+      return closestPixel;
+      }
+    }
+  std::cerr << "No non-zero pixel was found!" << std::endl;
+  
+  itk::Index<2> zeroIndex;
+  zeroIndex.Fill(0);
+  return zeroIndex;
+}
   
 bool IsNaN(const double a)
 {
@@ -18,12 +96,15 @@ void IndicesToBinaryImage(std::vector<itk::Index<2> > indices, UnsignedCharScala
   //std::cout << "Setting " << indices.size() << " points to non-zero." << std::endl;
 
   // Blank the image
+  /*
   itk::ImageRegionIterator<UnsignedCharScalarImageType> imageIterator(image,image->GetLargestPossibleRegion());
   while(!imageIterator.IsAtEnd())
     {
     imageIterator.Set(0);
     ++imageIterator;
     }
+  */
+  image->FillBuffer(0);
 
   // Set the pixels of indices in list to 255
   for(unsigned int i = 0; i < indices.size(); i++)
@@ -32,6 +113,22 @@ void IndicesToBinaryImage(std::vector<itk::Index<2> > indices, UnsignedCharScala
     }
 }
 
+std::vector<itk::Index<2> > BinaryImageToIndices(UnsignedCharScalarImageType::Pointer image)
+{
+  std::vector<itk::Index<2> > indices;
+  
+  itk::ImageRegionConstIterator<UnsignedCharScalarImageType> imageIterator(image,image->GetLargestPossibleRegion());
+  while(!imageIterator.IsAtEnd())
+    {
+    if(imageIterator.Get())
+      {
+      indices.push_back(imageIterator.GetIndex());
+      }
+    ++imageIterator;
+    }
+
+  return indices;
+}
 
 void MaskImage(vtkSmartPointer<vtkImageData> VTKImage, vtkSmartPointer<vtkImageData> VTKSegmentMask, vtkSmartPointer<vtkImageData> VTKMaskedImage)
 {
@@ -231,5 +328,85 @@ void InvertBinaryImage(UnsignedCharScalarImageType::Pointer image, UnsignedCharS
     ++imageIterator;
     }
 }
+
+
+std::vector<itk::Index<2> > PolyDataToPixelList(vtkPolyData* polydata)
+{
+  std::cout << "Enter PolyDataToPixelList()" << std::endl;
+  std::cout << "There are " << polydata->GetNumberOfPoints() << " points." << std::endl;
+  
+  // Convert vtkPoints to indices
+  std::cout << "Converting vtkPoints to indices..." << std::endl;
+  std::vector<itk::Index<2> > linePoints;
+  for(vtkIdType i = 0; i < polydata->GetNumberOfPoints(); i++)
+    {
+    itk::Index<2> index;
+    double p[3];
+    polydata->GetPoint(i,p);
+    index[0] = round(p[0]);
+    index[1] = round(p[1]);
+    linePoints.push_back(index);
+    }
+
+  if(linePoints.size() < 2)
+    {
+    std::cerr << "Cannot draw a lines between " << linePoints.size() << " points." << std::endl;
+    return linePoints;
+    }
+    
+  // Compute the indices between every pair of points
+  std::cout << "Computing the indices between every pair of points..." << std::endl;
+  std::vector<itk::Index<2> > allIndices;
+  for(unsigned int linePointId = 1; linePointId < linePoints.size(); linePointId++)
+    {
+    std::cout << "Getting the indices..." << std::endl;
+    itk::Index<2> index0 = linePoints[linePointId-1];
+    itk::Index<2> index1 = linePoints[linePointId];
+    /*
+    // Currently need the distance between the points for Bresenham (pending patch in Gerrit)
+    itk::Point<float,2> point0;
+    itk::Point<float,2> point1;
+    for(unsigned int i = 0; i < 2; i++)
+      {
+      point0[i] = index0[i];
+      point1[i] = index1[i];
+      }
+      
+    float distance = point0.EuclideanDistanceTo(point1);
+    itk::BresenhamLine<2> line;
+    std::vector<itk::Offset<2> > offsets;
+
+    // Occasionally there is a crash when scribbling. One time while attempting to stepp through another part of the code it seemed to crash in BresenhamLine
+    // so I added this try/catch to see if it is ever thrown in the future.
+    try
+    {
+      // This indicates to draw a line of length 'distance' starting at (0,0) in the direction (point1-point0). We will add these offsets to index0 later.
+      offsets = line.BuildLine(point1-point0, distance);
+    }
+    catch (...)
+    {
+      cerr << "Error building BresenhamLine." << endl;
+    }
+    
+    for(unsigned int i = 0; i < offsets.size(); i++)
+      {
+      allIndices.push_back(index0 + offsets[i]);
+      }
+    */
+    std::cout << "Constructing the line..." << std::endl;
+    itk::BresenhamLine<2> line;
+    std::vector<itk::Index<2> > indices = line.BuildLine(index0, index1);
+    std::cout << "Saving indices..." << std::endl;
+    for(unsigned int i = 0; i < indices.size(); i++)
+      {
+      allIndices.push_back(indices[i]);
+      }
+      
+    } // end for loop over line segments
+
+  std::cout << "Exit PolyDataToPixelList()" << std::endl;
+  return allIndices;
+}
+
 
 } // end namespace

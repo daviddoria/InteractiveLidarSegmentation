@@ -18,7 +18,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "ImageGraphCut.h"
 
 // ITK
+//#include "itkAndImageFilter.h"
 #include "itkBilateralImageFilter.h"
+#include "itkBinaryBallStructuringElement.h"
+#include "itkBinaryDilateImageFilter.h"
 #include "itkGradientMagnitudeImageFilter.h"
 #include "itkImageRegionIterator.h"
 #include "itkMaskImageFilter.h"
@@ -28,6 +31,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "itkShapedNeighborhoodIterator.h"
 #include "itkVectorGradientMagnitudeImageFilter.h"
 #include "itkVectorIndexSelectionCastImageFilter.h"
+#include "itkXorImageFilter.h"
 
 // STL
 #include <algorithm>
@@ -69,6 +73,7 @@ ImageGraphCut::ImageGraphCut()
   this->Debug = false;
   
   this->IncludeDepthInHistogram = false;
+  this->NumberOfHistogramComponents = 0;
 }
 
 ImageType::Pointer ImageGraphCut::GetImage()
@@ -159,7 +164,7 @@ void ImageGraphCut::CutGraph()
     ++nodeImageIterator;
     }
 
-  delete this->Graph;
+  
 }
 
 void ImageGraphCut::PerformSegmentation()
@@ -197,12 +202,124 @@ void ImageGraphCut::PerformSegmentation()
     ++segmentMaskImageIterator;
     }
 
+  if(this->IncludeDepthInHistogram)
+    {
+    this->NumberOfHistogramComponents = 4;
+    }
+  else
+    {
+    this->NumberOfHistogramComponents = 3;
+    }
+    
   if(this->Debug)
     {
     this->DifferenceFunction->WriteImages();
     }
   this->CreateGraph();
+  
   this->CutGraph();
+  
+  if(this->SecondStep)
+    {
+    // This is the second step - perform another segmentation on the colors using the output of the depth segmentation as the foreground/source seeds
+    std::cout << "Setting up second segmentation..." << std::endl;
+  
+    // Set the new sources
+    
+    Helpers::WriteImage<MaskImageType>(this->SegmentMask, "originalSegmentation.png");
+    std::cout << "Determining new sources..." << std::endl;
+    std::vector<itk::Index<2> > newSources = Helpers::BinaryImageToIndices(this->SegmentMask);
+    std::cout << "Setting " << newSources.size() << " new sources..." << std::endl;
+    SetHardSources(newSources);
+  
+    // Dilate the segment mask
+    std::cout << "Dilating mask..." << std::endl;
+    typedef itk::BinaryBallStructuringElement<MaskImageType::PixelType,2> StructuringElementType;
+    StructuringElementType structuringElement;
+    unsigned int radius = 2;
+    structuringElement.SetRadius(radius);
+    structuringElement.CreateStructuringElement();
+  
+    typedef itk::BinaryDilateImageFilter <MaskImageType, MaskImageType, StructuringElementType> BinaryDilateImageFilterType;
+  
+    BinaryDilateImageFilterType::Pointer dilateFilter = BinaryDilateImageFilterType::New();
+    dilateFilter->SetInput(this->SegmentMask);
+    dilateFilter->SetKernel(structuringElement);
+    dilateFilter->Update();
+    
+    Helpers::WriteImage<MaskImageType>(dilateFilter->GetOutput(), "dilated.png");
+    
+    // Binary XOR the images to get the difference image
+    std::cout << "XORing masks..." << std::endl;
+    typedef itk::XorImageFilter <MaskImageType> XorImageFilterType;
+  
+    XorImageFilterType::Pointer xorFilter = XorImageFilterType::New();
+    xorFilter->SetInput1(this->SegmentMask);
+    xorFilter->SetInput2(dilateFilter->GetOutput());
+    xorFilter->Update();
+    
+    Helpers::WriteImage<MaskImageType>(xorFilter->GetOutput(), "boundaryOfSegmentation.png");
+    
+    // Iterate over the border pixels. If the closest pixel in the original segmentation has a depth greater than a threshold, mark it as a new sink. Else, do not.
+    std::cout << "Determining which boundary pixels should be declared background..." << std::endl;
+    //std::cout << "There should be " << Helpers::CountNonZeroPixels(xorFilter->GetOutput()) << " considered." << std::endl;
+    std::vector<itk::Index<2> > newSinks;
+    itk::ImageRegionIterator<MaskImageType> imageIterator(xorFilter->GetOutput(), xorFilter->GetOutput()->GetLargestPossibleRegion());
+ 
+    unsigned int consideredCounter = 0;
+    unsigned int backgroundCounter = 0;
+    while(!imageIterator.IsAtEnd())
+      {
+      if(imageIterator.Get()) // If the current pixel is in question
+	{
+	consideredCounter++;
+	//std::cout << "Considering pixel " << consideredCounter << " (index " << imageIterator.GetIndex() << ")" << std::endl;
+	ImageType::PixelType currentPixel = this->Image->GetPixel(imageIterator.GetIndex());
+	itk::Index<2> closestPixelIndex = Helpers::FindClosestNonZeroPixel(this->SegmentMask, imageIterator.GetIndex());
+	//std::cout << "Closest pixel is " << closestPixelIndex << std::endl;
+	ImageType::PixelType closestPixel = this->Image->GetPixel(closestPixelIndex);
+	//std::cout << "Current pixel depth value is " << currentPixel[3] << std::endl;
+	//std::cout << "Closest pixel depth value is " << closestPixel[3] << std::endl;
+	float difference = fabs(currentPixel[3]-closestPixel[3]);
+	if(difference > this->BackgroundThreshold)
+	  {
+	  //std::cout << "Difference was " << difference << " so this is a sink pixel." << std::endl;
+	  newSinks.push_back(imageIterator.GetIndex());
+	  backgroundCounter++;
+	  }
+	else
+	  {
+	  //std::cout << "Difference was " << difference << " so this is NOT a sink pixel." << std::endl;
+	  }
+	}
+  
+      ++imageIterator;
+      }
+      
+    // Save the new sink pixels for inspection
+    UnsignedCharScalarImageType::Pointer newSinksImage = UnsignedCharScalarImageType::New();
+    newSinksImage->SetRegions(this->Image->GetLargestPossibleRegion());
+    newSinksImage->Allocate();
+    
+    Helpers::IndicesToBinaryImage(newSinks, newSinksImage);
+    Helpers::WriteImage<MaskImageType>(newSinksImage, "newSinks.png");
+    
+    //std::cout << "Out of " << consideredCounter << " pixels considered, " << backgroundCounter << " were declared background." << std::endl;
+    // Set the new sinks
+    std::cout << "Setting " << newSinks.size() << " new sinks." << std::endl;
+    SetHardSinks(newSinks);
+    
+    std::cout << "Performing the second segmentation..." << std::endl;
+    // Set the parameters for the second cut and perform the cut
+    this->DifferenceFunction = new DifferenceMaxOfColorOrDepth;
+    this->DifferenceFunction->SetImage(this->Image);
+    this->CreateGraph();
+    this->CutGraph();
+    
+    Helpers::WriteImage<MaskImageType>(this->SegmentMask, "FinalSegmentation.png");
+    }
+    
+  delete this->Graph;
 }
 
 void ImageGraphCut::CreateHistogram(unsigned int numberOfComponents)
@@ -386,17 +503,8 @@ void ImageGraphCut::CreateTWeights()
   // Compute the histograms of the selected foreground and background pixels
   //
   //CreateFullHistogramSamples();
-  unsigned int numberOfHistogramComponents = 0;
-  if(this->IncludeDepthInHistogram)
-    {
-    numberOfHistogramComponents = 4;
-    }
-  else
-    {
-    numberOfHistogramComponents = 3;
-    }
     
-  CreateHistogram(numberOfHistogramComponents);
+  CreateHistogram(this->NumberOfHistogramComponents);
   
   itk::ImageRegionIterator<ImageType> imageIterator(this->Image, this->Image->GetLargestPossibleRegion());
   itk::ImageRegionIterator<NodeImageType> nodeIterator(this->NodeImage, this->NodeImage->GetLargestPossibleRegion());
@@ -429,8 +537,8 @@ void ImageGraphCut::CreateTWeights()
       {
       //std::cout << "Pixels have size: " << pixel.Size() << std::endl;
       
-      HistogramType::MeasurementVectorType measurementVector(numberOfHistogramComponents);
-      for(unsigned int i = 0; i < numberOfHistogramComponents; i++)
+      HistogramType::MeasurementVectorType measurementVector(this->NumberOfHistogramComponents);
+      for(unsigned int i = 0; i < this->NumberOfHistogramComponents; i++)
 	{
 	//measurementVector[i] = pixel[i];
 	measurementVector[i] = (pixel[i] - this->DifferenceFunction->MinimumOfChannels[i])/(this->DifferenceFunction->MaximumOfChannels[i] - this->DifferenceFunction->MinimumOfChannels[i]);
@@ -487,6 +595,27 @@ void ImageGraphCut::CreateTWeights()
   std::cout << "Max sinkTWeights: " << *(std::max_element(sinkTWeights.begin(), sinkTWeights.end())) << std::endl;
 }
 
+void ImageGraphCut::SetHardSources(const std::vector<itk::Index<2> >& pixels)
+{
+  // The syntax is add_tweights(location, SourceLinkWeight, SinkLinkWeight).
+  // We want source pixels to be strongly linked to the imaginary source node (so the link won't be cut) and weakly linked
+  // to the sink node (weight 0, so it will certainly be cut if necessary. The reverse holds for sink pixels.
+  for(unsigned int i = 0; i < pixels.size(); i++)
+    {
+    //std::cout << "Setting t-weight for node: " << this->NodeImage->GetPixel(pixels[i]) << " (pixel " << pixels[i] << ")" << std::endl;
+    this->Graph->add_tweights(this->NodeImage->GetPixel(pixels[i]), std::numeric_limits<float>::max(),0);
+    }
+}
+
+void ImageGraphCut::SetHardSinks(const std::vector<itk::Index<2> >& pixels)
+{
+  // Set very high sink weights for the pixels which were selected as background by the user
+  for(unsigned int i = 0; i < pixels.size(); i++)
+    {
+    this->Graph->add_tweights(this->NodeImage->GetPixel(pixels[i]),0, std::numeric_limits<float>::max());
+    }
+}
+
 void ImageGraphCut::CreateGraph()
 {
   if(this->Debug)
@@ -501,21 +630,10 @@ void ImageGraphCut::CreateGraph()
   CreateTWeights();
   
   // Set very high source weights for the pixels which were selected as foreground by the user.
-  // The syntax is add_tweights(location, SourceLinkWeight, SinkLinkWeight).
-  // We want source pixels to be strongly linked to the imaginary source node (so the link won't be cut) and weakly linked
-  // to the sink node (weight 0, so it will certainly be cut if necessary. The reverse holds for sink pixels.
-  for(unsigned int i = 0; i < this->Sources.size(); i++)
-    {
-    //this->Graph->add_tweights(this->NodeImage->GetPixel(this->Sources[i]),this->Lambda * std::numeric_limits<float>::max(),0);
-    this->Graph->add_tweights(this->NodeImage->GetPixel(this->Sources[i]), std::numeric_limits<float>::max(),0);
-    }
+  SetHardSinks(this->Sinks);
+  SetHardSources(this->Sources);
 
-  // Set very high sink weights for the pixels which were selected as background by the user
-  for(unsigned int i = 0; i < this->Sinks.size(); i++)
-    {
-    //this->Graph->add_tweights(this->NodeImage->GetPixel(this->Sinks[i]),0,this->Lambda * std::numeric_limits<float>::max());
-    this->Graph->add_tweights(this->NodeImage->GetPixel(this->Sinks[i]),0, std::numeric_limits<float>::max());
-    }
+
 }
 
 

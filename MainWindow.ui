@@ -459,7 +459,7 @@ QGroupBox#groupBox::title {
         <widget class="QCheckBox" name="chkDebug">
          <property name="geometry">
           <rect>
-           <x>50</x>
+           <x>10</x>
            <y>170</y>
            <width>131</width>
            <height>22</height>
@@ -480,6 +480,51 @@ QGroupBox#groupBox::title {
          </property>
          <property name="text">
           <string>Use depth in histogram</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+        <widget class="QCheckBox" name="chkSecondStep">
+         <property name="geometry">
+          <rect>
+           <x>140</x>
+           <y>150</y>
+           <width>111</width>
+           <height>22</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>Second step</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+        <widget class="QLineEdit" name="txtBackgroundThreshold">
+         <property name="geometry">
+          <rect>
+           <x>180</x>
+           <y>10</y>
+           <width>41</width>
+           <height>27</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>0.4</string>
+         </property>
+        </widget>
+        <widget class="QLabel" name="label_13">
+         <property name="geometry">
+          <rect>
+           <x>20</x>
+           <y>10</y>
+           <width>161</width>
+           <height>17</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>Background Threshold:</string>
          </property>
         </widget>
        </widget>

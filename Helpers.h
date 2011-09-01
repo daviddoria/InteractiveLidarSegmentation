@@ -12,8 +12,14 @@
 // Custom
 #include "Types.h"
 
+class vtkPolyData;
+
 namespace Helpers
 {
+unsigned int CountNonZeroPixels(MaskImageType::Pointer image);
+  
+bool FindClosestNonZeroPixel(MaskImageType::Pointer image, itk::Index<2> queryPixel, unsigned int radiusValue, itk::Index<2>&);
+itk::Index<2> FindClosestNonZeroPixel(MaskImageType::Pointer, itk::Index<2>);
 
 void MaskImage(vtkSmartPointer<vtkImageData> VTKImage, vtkSmartPointer<vtkImageData> VTKSegmentMask, vtkSmartPointer<vtkImageData> VTKMaskedImage);
 
@@ -22,6 +28,9 @@ bool IsNaN(const double a);
 
 // Mark each pixel at the specified 'indices' as a non-zero pixel in 'image'
 void IndicesToBinaryImage(std::vector<itk::Index<2> > indices, UnsignedCharScalarImageType::Pointer image);
+
+// Create a list of the non-zero pixels in 'image'
+std::vector<itk::Index<2> > BinaryImageToIndices(UnsignedCharScalarImageType::Pointer image);
 
 // Invert binary image
 void InvertBinaryImage(UnsignedCharScalarImageType::Pointer image, UnsignedCharScalarImageType::Pointer inverted);
@@ -32,11 +41,17 @@ void ITKImagetoVTKMagnitudeImage(ImageType::Pointer image, vtkImageData* outputI
 
 void ITKScalarImagetoVTKImage(MaskImageType::Pointer image, vtkImageData* outputImage);
 
+
+std::vector<itk::Index<2> > PolyDataToPixelList(vtkPolyData* polydata);
+
 template<typename T>
 T VectorMedian(std::vector<T> &v);
 
 template<typename T>
 T VectorAverage(std::vector<T> &v);
+
+template<typename TImage>
+void WriteImage(typename TImage::Pointer image, const std::string& fileName);
 
 }
 

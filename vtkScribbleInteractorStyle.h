@@ -89,7 +89,4 @@ private:
 
 };
 
-// Helpers
-std::vector<itk::Index<2> > PolyDataToPixelList(vtkPolyData* polydata);
-
 #endif
