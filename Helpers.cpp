@@ -12,20 +12,31 @@
 namespace Helpers
 {
 
-unsigned int CountNonZeroPixels(MaskImageType::Pointer image)
+float NegativeLog(float value)
 {
-  unsigned int counter = 0;
+  return -1. * log(value);
+}
+
+std::vector<itk::Index<2> > GetNonZeroPixels(MaskImageType::Pointer image)
+{
+  std::vector<itk::Index<2> > pixels;
   itk::ImageRegionIterator<MaskImageType> imageIterator(image, image->GetLargestPossibleRegion());
 
   while(!imageIterator.IsAtEnd())
     {
     if(imageIterator.Get()) // If the current pixel is in question
       {
-      counter++;
+      pixels.push_back(imageIterator.GetIndex());
       }
     ++imageIterator;
     }
-  return counter;
+  return pixels;
+}
+
+unsigned int CountNonZeroPixels(MaskImageType::Pointer image)
+{
+  std::vector<itk::Index<2> > pixels = GetNonZeroPixels(image);
+  return pixels.size();
 }
       
 bool FindClosestNonZeroPixel(MaskImageType::Pointer image, itk::Index<2> queryPixel, unsigned int radiusValue, itk::Index<2>& returnPixel)
@@ -93,17 +104,10 @@ bool IsNaN(const double a)
 
 void IndicesToBinaryImage(std::vector<itk::Index<2> > indices, UnsignedCharScalarImageType::Pointer image)
 {
+  // The Regions of the 'image' must be set before calling this function
   //std::cout << "Setting " << indices.size() << " points to non-zero." << std::endl;
 
-  // Blank the image
-  /*
-  itk::ImageRegionIterator<UnsignedCharScalarImageType> imageIterator(image,image->GetLargestPossibleRegion());
-  while(!imageIterator.IsAtEnd())
-    {
-    imageIterator.Set(0);
-    ++imageIterator;
-    }
-  */
+  image->Allocate();
   image->FillBuffer(0);
 
   // Set the pixels of indices in list to 255
@@ -362,37 +366,13 @@ std::vector<itk::Index<2> > PolyDataToPixelList(vtkPolyData* polydata)
     //std::cout << "Getting the indices..." << std::endl;
     itk::Index<2> index0 = linePoints[linePointId-1];
     itk::Index<2> index1 = linePoints[linePointId];
-    /*
-    // Currently need the distance between the points for Bresenham (pending patch in Gerrit)
-    itk::Point<float,2> point0;
-    itk::Point<float,2> point1;
-    for(unsigned int i = 0; i < 2; i++)
-      {
-      point0[i] = index0[i];
-      point1[i] = index1[i];
-      }
-      
-    float distance = point0.EuclideanDistanceTo(point1);
-    itk::BresenhamLine<2> line;
-    std::vector<itk::Offset<2> > offsets;
 
-    // Occasionally there is a crash when scribbling. One time while attempting to stepp through another part of the code it seemed to crash in BresenhamLine
-    // so I added this try/catch to see if it is ever thrown in the future.
-    try
-    {
-      // This indicates to draw a line of length 'distance' starting at (0,0) in the direction (point1-point0). We will add these offsets to index0 later.
-      offsets = line.BuildLine(point1-point0, distance);
-    }
-    catch (...)
-    {
-      cerr << "Error building BresenhamLine." << endl;
-    }
-    
-    for(unsigned int i = 0; i < offsets.size(); i++)
+    if(index0 == index1)
       {
-      allIndices.push_back(index0 + offsets[i]);
+      std::cout << "Can't draw a line between the same pixels!" << std::endl;
+      continue;
       }
-    */
+
     //std::cout << "Constructing the line..." << std::endl;
     itk::BresenhamLine<2> line;
     std::vector<itk::Index<2> > indices = line.BuildLine(index0, index1);
@@ -435,8 +415,14 @@ void CreateTransparentImage(vtkImageData* VTKImage)
 
 void SetPixels(vtkImageData* VTKImage, std::vector<itk::Index<2> > pixels, unsigned char color[3])
 {
+  int* dims = VTKImage->GetDimensions();
+  
   for(unsigned int i = 0; i < pixels.size(); ++i)
     {
+    if(pixels[i][0] >= dims[0] || pixels[i][1] >= dims[1]) // The pixel is out of bounds
+      {
+      continue;
+      }
     unsigned char* pixel = static_cast<unsigned char*>(VTKImage->GetScalarPointer(pixels[i][0],pixels[i][1],0));
     pixel[0] = color[0];
     pixel[1] = color[1];

@@ -30,6 +30,24 @@ void DeepCopy(typename TImage::Pointer input, typename TImage::Pointer output)
 }
 
 template<typename TImage>
+void DeepCopyVectorImage(typename TImage::Pointer input, typename TImage::Pointer output)
+{
+  output->SetRegions(input->GetLargestPossibleRegion());
+  output->SetNumberOfComponentsPerPixel(input->GetNumberOfComponentsPerPixel());
+  output->Allocate();
+
+  itk::ImageRegionConstIterator<TImage> inputIterator(input, input->GetLargestPossibleRegion());
+  itk::ImageRegionIterator<TImage> outputIterator(output, output->GetLargestPossibleRegion());
+
+  while(!inputIterator.IsAtEnd())
+    {
+    outputIterator.Set(inputIterator.Get());
+    ++inputIterator;
+    ++outputIterator;
+    }
+}
+
+template<typename TImage>
 void WriteImage(typename TImage::Pointer image, const std::string& fileName)
 {
   typedef  itk::ImageFileWriter< TImage > WriterType;
@@ -37,6 +55,19 @@ void WriteImage(typename TImage::Pointer image, const std::string& fileName)
   writer->SetFileName(fileName);
   writer->SetInput(image);
   writer->Update();
+}
+
+template<typename T>
+void WriteVectorToFile(std::vector<T> &v, const std::string& filename)
+{
+  std::ofstream fout(filename.c_str());
+ 
+  for(unsigned int i = 0; i < v.size(); ++i)
+    {
+    fout << v[i] << std::endl;
+    }
+ 
+  fout.close();
 }
 
 template<typename T>

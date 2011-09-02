@@ -17,6 +17,10 @@ class vtkPolyData;
 namespace Helpers
 {
 unsigned int CountNonZeroPixels(MaskImageType::Pointer image);
+
+float NegativeLog(float);
+
+std::vector<itk::Index<2> > GetNonZeroPixels(MaskImageType::Pointer image);
   
 bool FindClosestNonZeroPixel(MaskImageType::Pointer image, itk::Index<2> queryPixel, unsigned int radiusValue, itk::Index<2>&);
 itk::Index<2> FindClosestNonZeroPixel(MaskImageType::Pointer, itk::Index<2>);
@@ -62,6 +66,11 @@ void WriteImage(typename TImage::Pointer image, const std::string& fileName);
 template <typename TImage>
 void SetPixels(TImage* image, std::vector<itk::Index<2> > pixels, typename TImage::PixelType value);
 
+template<typename TImage>
+void DeepCopy(typename TImage::Pointer input, typename TImage::Pointer output);
+
+template<typename TImage>
+void DeepCopyVectorImage(typename TImage::Pointer input, typename TImage::Pointer output);
 }
 
 #include "Helpers.txx"

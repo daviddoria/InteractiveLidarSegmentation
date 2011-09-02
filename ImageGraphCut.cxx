@@ -74,6 +74,57 @@ ImageGraphCut::ImageGraphCut()
   
   this->IncludeDepthInHistogram = false;
   this->NumberOfHistogramComponents = 0;
+  
+  // Debug
+  this->DebugGraphPolyData = vtkSmartPointer<vtkPolyData>::New();
+  this->DebugGraphLines = vtkSmartPointer<vtkCellArray>::New();
+  
+  this->DebugGraphEdgeWeights = vtkSmartPointer<vtkFloatArray>::New();
+  this->DebugGraphEdgeWeights->SetNumberOfComponents(1);
+  this->DebugGraphEdgeWeights->SetName("EdgeWeights");
+  
+  this->DebugGraphSourceWeights = vtkSmartPointer<vtkFloatArray>::New();
+  this->DebugGraphSourceWeights->SetNumberOfComponents(1);
+  this->DebugGraphSourceWeights->SetName("SourceWeights");
+  
+  this->DebugGraphSinkWeights = vtkSmartPointer<vtkFloatArray>::New();
+  this->DebugGraphSinkWeights->SetNumberOfComponents(1);
+  this->DebugGraphSinkWeights->SetName("SinkWeights");
+  
+  this->DebugGraphSourceHistogram = vtkSmartPointer<vtkFloatArray>::New();
+  this->DebugGraphSourceHistogram->SetNumberOfComponents(1);
+  this->DebugGraphSourceHistogram->SetName("SourceHistogram");
+  
+  this->DebugGraphSinkHistogram = vtkSmartPointer<vtkFloatArray>::New();
+  this->DebugGraphSinkHistogram->SetNumberOfComponents(1);
+  this->DebugGraphSinkHistogram->SetName("SinkHistogram");
+  
+  this->DebugGraphPointIds = itk::Image<unsigned int, 2>::New();
+  
+}
+
+void ImageGraphCut::CreateDebugPolyData()
+{
+  this->DebugGraphPointIds->SetRegions(this->Image->GetLargestPossibleRegion());
+  this->DebugGraphPointIds->Allocate();
+  this->DebugGraphPointIds->FillBuffer(0);
+  
+  itk::ImageRegionIterator<itk::Image<unsigned int, 2> > imageIterator(this->DebugGraphPointIds, this->DebugGraphPointIds->GetLargestPossibleRegion());
+ 
+  vtkSmartPointer<vtkPoints> points = vtkSmartPointer<vtkPoints>::New();
+  
+  while(!imageIterator.IsAtEnd())
+    {
+    imageIterator.Set(points->GetNumberOfPoints());
+    double p[3];
+    p[0] = imageIterator.GetIndex()[0];
+    p[1] = imageIterator.GetIndex()[1];
+    p[2] = 0;
+  
+    points->InsertNextPoint(p);
+    ++imageIterator;
+    }
+  this->DebugGraphPolyData->SetPoints(points);
 }
 
 ImageType::Pointer ImageGraphCut::GetImage()
@@ -133,7 +184,10 @@ ImageType::Pointer ImageGraphCut::GetMaskedOutput()
 
 void ImageGraphCut::CutGraph()
 {
-  //std::cout << "RGBWeight: " << RGBWeight << std::endl;
+  if(this->Debug)
+    {
+    std::cout << "CutGraph()" << std::endl;
+    }
   
   // Compute max-flow
   this->Graph->maxflow();
@@ -219,210 +273,105 @@ void ImageGraphCut::PerformSegmentation()
   
   this->CutGraph();
   
-  if(this->SecondStep)
-    {
-    // This is the second step - perform another segmentation on the colors using the output of the depth segmentation as the foreground/source seeds
-    std::cout << "Setting up second segmentation..." << std::endl;
-  
-    // Set the new sources
-    
-    Helpers::WriteImage<MaskImageType>(this->SegmentMask, "originalSegmentation.png");
-    std::cout << "Determining new sources..." << std::endl;
-    std::vector<itk::Index<2> > newSources = Helpers::BinaryImageToIndices(this->SegmentMask);
-  
-    // Modify the list of sources so it can be retrieved by the MainWindow after the segmentation is finished
-    this->Sources.insert(this->Sources.end(), newSources.begin(), newSources.end());
-    
-    std::cout << "Setting " << newSources.size() << " new sources..." << std::endl;
-    SetHardSources(newSources);
-  
-    // Dilate the segment mask
-    std::cout << "Dilating mask..." << std::endl;
-    typedef itk::BinaryBallStructuringElement<MaskImageType::PixelType,2> StructuringElementType;
-    StructuringElementType structuringElement;
-    unsigned int radius = 2;
-    structuringElement.SetRadius(radius);
-    structuringElement.CreateStructuringElement();
-  
-    typedef itk::BinaryDilateImageFilter <MaskImageType, MaskImageType, StructuringElementType> BinaryDilateImageFilterType;
-  
-    BinaryDilateImageFilterType::Pointer dilateFilter = BinaryDilateImageFilterType::New();
-    dilateFilter->SetInput(this->SegmentMask);
-    dilateFilter->SetKernel(structuringElement);
-    dilateFilter->Update();
-    
-    Helpers::WriteImage<MaskImageType>(dilateFilter->GetOutput(), "dilated.png");
-    
-    // Binary XOR the images to get the difference image
-    std::cout << "XORing masks..." << std::endl;
-    typedef itk::XorImageFilter <MaskImageType> XorImageFilterType;
-  
-    XorImageFilterType::Pointer xorFilter = XorImageFilterType::New();
-    xorFilter->SetInput1(this->SegmentMask);
-    xorFilter->SetInput2(dilateFilter->GetOutput());
-    xorFilter->Update();
-    
-    Helpers::WriteImage<MaskImageType>(xorFilter->GetOutput(), "boundaryOfSegmentation.png");
-    
-    // Iterate over the border pixels. If the closest pixel in the original segmentation has a depth greater than a threshold, mark it as a new sink. Else, do not.
-    std::cout << "Determining which boundary pixels should be declared background..." << std::endl;
-    //std::cout << "There should be " << Helpers::CountNonZeroPixels(xorFilter->GetOutput()) << " considered." << std::endl;
-    std::vector<itk::Index<2> > newSinks;
-    itk::ImageRegionIterator<MaskImageType> imageIterator(xorFilter->GetOutput(), xorFilter->GetOutput()->GetLargestPossibleRegion());
- 
-    unsigned int consideredCounter = 0;
-    unsigned int backgroundCounter = 0;
-    while(!imageIterator.IsAtEnd())
-      {
-      if(imageIterator.Get()) // If the current pixel is in question
-	{
-	consideredCounter++;
-	//std::cout << "Considering pixel " << consideredCounter << " (index " << imageIterator.GetIndex() << ")" << std::endl;
-	ImageType::PixelType currentPixel = this->Image->GetPixel(imageIterator.GetIndex());
-	itk::Index<2> closestPixelIndex = Helpers::FindClosestNonZeroPixel(this->SegmentMask, imageIterator.GetIndex());
-	//std::cout << "Closest pixel is " << closestPixelIndex << std::endl;
-	ImageType::PixelType closestPixel = this->Image->GetPixel(closestPixelIndex);
-	//std::cout << "Current pixel depth value is " << currentPixel[3] << std::endl;
-	//std::cout << "Closest pixel depth value is " << closestPixel[3] << std::endl;
-	float difference = fabs(currentPixel[3]-closestPixel[3]);
-	if(difference > this->BackgroundThreshold)
-	  {
-	  //std::cout << "Difference was " << difference << " so this is a sink pixel." << std::endl;
-	  newSinks.push_back(imageIterator.GetIndex());
-	  backgroundCounter++;
-	  }
-	else
-	  {
-	  //std::cout << "Difference was " << difference << " so this is NOT a sink pixel." << std::endl;
-	  }
-	}
-  
-      ++imageIterator;
-      }
-      
-    // Save the new sink pixels for inspection
-    UnsignedCharScalarImageType::Pointer newSinksImage = UnsignedCharScalarImageType::New();
-    newSinksImage->SetRegions(this->Image->GetLargestPossibleRegion());
-    newSinksImage->Allocate();
-    
-    Helpers::IndicesToBinaryImage(newSinks, newSinksImage);
-    Helpers::WriteImage<MaskImageType>(newSinksImage, "newSinks.png");
-    
-    //std::cout << "Out of " << consideredCounter << " pixels considered, " << backgroundCounter << " were declared background." << std::endl;
-    // Set the new sinks
-    std::cout << "Setting " << newSinks.size() << " new sinks." << std::endl;
-    
-    // Modify the list of sinks so it can be retrieved by the MainWindow after the segmentation is finished
-    this->Sinks.insert(this->Sinks.end(), newSinks.begin(), newSinks.end());
-    
-    SetHardSinks(newSinks);
-    
-    std::cout << "Performing the second segmentation..." << std::endl;
-    // Set the parameters for the second cut and perform the cut
-    this->DifferenceFunction = new DifferenceMaxOfColorOrDepth;
-    this->DifferenceFunction->SetImage(this->Image);
-    this->CreateGraph();
-    this->CutGraph();
-    
-    Helpers::WriteImage<MaskImageType>(this->SegmentMask, "FinalSegmentation.png");
-    }
-    
   delete this->Graph;
 }
 
-void ImageGraphCut::CreateHistogram(unsigned int numberOfComponents)
+const HistogramType* ImageGraphCut::CreateHistogram(std::vector<itk::Index<2> > pixels, std::vector<unsigned int> channelsToUse)
+//void ImageGraphCut::CreateHistogram(std::vector<itk::Index<2> > pixels, std::vector<unsigned int> channelsToUse, const HistogramType* histogramOutput)
 {
-  // This function creates ITK samples from the scribbled pixels and then computes the foreground and background histograms
   std::cout << "CreateHistogram()" << std::endl;
-  
+  unsigned int numberOfComponents = channelsToUse.size();
+
   // Typedefs
   typedef itk::Statistics::ListSample<PixelType> SampleType;
   typedef itk::Statistics::SampleToHistogramFilter<SampleType, HistogramType> SampleToHistogramFilterType;
 
-  SampleToHistogramFilterType::Pointer foregroundHistogramFilter = SampleToHistogramFilterType::New();
-  SampleToHistogramFilterType::Pointer backgroundHistogramFilter = SampleToHistogramFilterType::New();
-  SampleType::Pointer foregroundSample = SampleType::New();
-  SampleType::Pointer backgroundSample = SampleType::New();
+  SampleToHistogramFilterType::Pointer histogramFilter = SampleToHistogramFilterType::New();
+
+  SampleType::Pointer sample = SampleType::New();
+  
+  std::vector<float> debugNormalizedPixelValues;
   
   // We want the histogram bins to take values from 0 to 1 in all dimensions
   HistogramType::MeasurementVectorType binMinimum(numberOfComponents);
   HistogramType::MeasurementVectorType binMaximum(numberOfComponents);
-  for(unsigned int i = 0; i < numberOfComponents; i++)
+  for(unsigned int component = 0; component < numberOfComponents; component++)
     {
-    binMinimum[i] = 0;
-    binMaximum[i] = 1;
+    binMinimum[component] = 0;
+    binMaximum[component] = 1;
     }
 
   // Setup the histogram size
   SampleToHistogramFilterType::HistogramSizeType histogramSize(numberOfComponents);
   histogramSize.Fill(this->NumberOfHistogramBins);
 
-  // Create foreground samples and histogram
-  foregroundSample->Clear();
-  foregroundSample->SetMeasurementVectorSize(numberOfComponents);
+  // Create samples and histogram
+  sample->Clear();
+  sample->SetMeasurementVectorSize(numberOfComponents);
   //std::cout << "Measurement vector size: " << this->ForegroundSample->GetMeasurementVectorSize() << std::endl;
   //std::cout << "Pixel size: " << this->Image->GetPixel(this->Sources[0]).GetNumberOfElements() << std::endl;
   
-  for(unsigned int i = 0; i < this->Sources.size(); i++)
+  for(unsigned int pixelId = 0; pixelId < pixels.size(); pixelId++) // Add all of the indicated foreground pixels to the histogram
     {
-    if(!this->Image->GetPixel(this->Sources[i])[4]) // Don't include invalid pixels in the histogram
+    if(!this->Image->GetPixel(pixels[pixelId])[4]) // Don't include invalid pixels in the histogram
       {
       continue;
       }
       
     itk::VariableLengthVector<float> normalizedPixel;
-    PixelType pixel = this->Image->GetPixel(this->Sources[i]);
+    PixelType pixel = this->Image->GetPixel(pixels[pixelId]);
     normalizedPixel.SetSize(numberOfComponents);
     for(unsigned int component = 0; component < numberOfComponents; component++)
       {
-      normalizedPixel[component] = (pixel[component] - this->DifferenceFunction->MinimumOfChannels[component])/(this->DifferenceFunction->MaximumOfChannels[component] - this->DifferenceFunction->MinimumOfChannels[component]);
+      unsigned int channel = channelsToUse[component];
+      normalizedPixel[component] = (pixel[channel] - this->DifferenceFunction->MinimumOfChannels[channel])/(this->DifferenceFunction->MaximumOfChannels[channel] - this->DifferenceFunction->MinimumOfChannels[channel]);
+      if(this->Debug)
+	{
+	std::cout << "Pixel " << pixelId << " (" << pixels[pixelId] << ") channel " << channel << " has value " << pixel[channel] << " and normalized value " << normalizedPixel[component] << std::endl;
+	debugNormalizedPixelValues.push_back(normalizedPixel[component]);
+	}
       }
     
-    foregroundSample->PushBack(normalizedPixel);
+    sample->PushBack(normalizedPixel);
     }
 
-  foregroundHistogramFilter->SetHistogramSize(histogramSize);
-  foregroundHistogramFilter->SetHistogramBinMinimum(binMinimum);
-  foregroundHistogramFilter->SetHistogramBinMaximum(binMaximum);
-  foregroundHistogramFilter->SetAutoMinimumMaximum(false);
-  foregroundHistogramFilter->SetInput(foregroundSample);
-  foregroundHistogramFilter->Modified();
-  foregroundHistogramFilter->Update();
-  foregroundHistogramFilter->Register();
+  Helpers::WriteVectorToFile<float>(debugNormalizedPixelValues, "histogram.txt");
+  
+  histogramFilter->SetHistogramSize(histogramSize);
+  histogramFilter->SetHistogramBinMinimum(binMinimum);
+  histogramFilter->SetHistogramBinMaximum(binMaximum);
+  histogramFilter->SetAutoMinimumMaximum(false);
+  histogramFilter->SetInput(sample);
+  histogramFilter->Modified();
+  histogramFilter->Update();
+  histogramFilter->Register();
 
-  this->ForegroundHistogram = foregroundHistogramFilter->GetOutput();
-  //this->ForegroundHistogram->
+  return histogramFilter->GetOutput();
+  //histogramOutput = histogramFilter->GetOutput();
+}
 
-  // Create background samples and histogram
-  backgroundSample->Clear();
-  backgroundSample->SetMeasurementVectorSize(numberOfComponents);
-  for(unsigned int i = 0; i < this->Sinks.size(); i++)
+void ImageGraphCut::CreateHistograms()
+{
+  // This function creates ITK samples from the scribbled pixels and then computes the foreground and background histograms
+  std::cout << "CreateHistograms()" << std::endl;
+  
+  std::vector<unsigned int> channelsToUse;
+  if(this->IncludeColorInHistogram)
     {
-    if(!this->Image->GetPixel(this->Sinks[i])[4]) // Don't include invalid pixels in the histogram
-      {
-      continue;
-      }
-    itk::VariableLengthVector<float> normalizedPixel;
-    PixelType pixel = this->Image->GetPixel(this->Sinks[i]);
-    normalizedPixel.SetSize(numberOfComponents);
-    for(unsigned int component = 0; component < numberOfComponents; component++)
-      {
-      normalizedPixel[component] = (pixel[component] - this->DifferenceFunction->MinimumOfChannels[component])/(this->DifferenceFunction->MaximumOfChannels[component] - this->DifferenceFunction->MinimumOfChannels[component]);
-      }
-    backgroundSample->PushBack(normalizedPixel);
+    channelsToUse.push_back(0);
+    channelsToUse.push_back(1);
+    channelsToUse.push_back(2);
+    }
+  if(this->IncludeDepthInHistogram)
+    {
+    channelsToUse.push_back(3);
     }
 
-  backgroundHistogramFilter->SetHistogramSize(histogramSize);
-  backgroundHistogramFilter->SetHistogramBinMinimum(binMinimum);
-  backgroundHistogramFilter->SetHistogramBinMaximum(binMaximum);
-  backgroundHistogramFilter->SetAutoMinimumMaximum(false);
-  backgroundHistogramFilter->SetInput(backgroundSample);
-  backgroundHistogramFilter->Modified();
-  backgroundHistogramFilter->Update();
-  backgroundHistogramFilter->Register();
-
-  this->BackgroundHistogram = backgroundHistogramFilter->GetOutput();
-
+  this->ForegroundHistogram = CreateHistogram(this->Sources, channelsToUse);
+  this->BackgroundHistogram = CreateHistogram(this->Sinks, channelsToUse);
+  
+  //CreateHistogram(this->Sources, channelsToUse, this->ForegroundHistogram);
+  //CreateHistogram(this->Sinks, channelsToUse, this->BackgroundHistogram);
 }
 
 
@@ -445,8 +394,16 @@ void ImageGraphCut::CreateGraphNodes()
 
 void ImageGraphCut::CreateNWeights()
 {
-  
   ////////// Create n-edges and set n-edge weights (links between image nodes) //////////
+  
+  if(this->Debug)
+    {
+    this->DebugGraphLines->Initialize();
+  
+    this->DebugGraphEdgeWeights->Initialize();
+    this->DebugGraphEdgeWeights->SetNumberOfValues(1);
+    }
+  
   // We use a neighborhood iterator here even though we are looking only at a single pixel index in all images on each iteration because we use the neighborhood to determine edge validity.
   std::vector<NeighborhoodIteratorType::OffsetType> neighbors;
   NeighborhoodIteratorType iterator(Get1x1Radius(), this->Image, this->Image->GetLargestPossibleRegion());
@@ -490,13 +447,24 @@ void ImageGraphCut::CreateNWeights()
 	float pixelDifference = this->DifferenceFunction->GetDifference(iterator.GetIndex());
 	  
 	// Compute the edge weight
-	weight = ComputeEdgeWeight(pixelDifference);
+	weight = ComputeNEdgeWeight(pixelDifference);
 
 	}// end if current and neighbor are valid
       // Add the edge to the graph
       void* node1 = this->NodeImage->GetPixel(iterator.GetIndex());
       void* node2 = this->NodeImage->GetPixel(iterator.GetIndex(neighbors[i]));
       this->Graph->add_edge(node1, node2, weight, weight); // This is an undirected graph so we create a bidirectional edge with both weights set to 'weight'
+      
+      if(this->Debug)
+	{
+	vtkSmartPointer<vtkLine> line = vtkSmartPointer<vtkLine>::New();
+	line->GetPointIds()->SetId(0,this->DebugGraphPointIds->GetPixel(iterator.GetIndex()));
+	line->GetPointIds()->SetId(1,this->DebugGraphPointIds->GetPixel(iterator.GetIndex(neighbors[i])));
+	this->DebugGraphLines->InsertNextCell(line);
+      
+	this->DebugGraphEdgeWeights->InsertNextValue(weight);
+	}
+
       //std::cout << "Set n-edge weight to " << weight << std::endl;
       } // end loop over neighbors
     } // end iteration over entire image
@@ -505,15 +473,43 @@ void ImageGraphCut::CreateNWeights()
 
 void ImageGraphCut::CreateTWeights()
 {
-  
+  std::cout << "CreateTWeights()" << std::endl;
   ////////// Add t-edges and set t-edge weights (links from image nodes to virtual background and virtual foreground node) //////////
 
   // Compute the histograms of the selected foreground and background pixels
-  //
-  //CreateFullHistogramSamples();
     
-  CreateHistogram(this->NumberOfHistogramComponents);
+  CreateHistograms();
   
+  std::vector<unsigned int> channelsToUse;
+  if(this->IncludeColorInHistogram)
+    {
+    channelsToUse.push_back(0);
+    channelsToUse.push_back(1);
+    channelsToUse.push_back(2);
+    }
+  if(this->IncludeDepthInHistogram)
+    {
+    channelsToUse.push_back(3);
+    }
+      
+  if(this->Debug)
+    {
+    std::cout << "Using channels ";
+    for(unsigned int i = 0; i < channelsToUse.size(); ++i)
+      {
+      std::cout << channelsToUse[i] << " ";
+      }
+    std::cout << " to create T-Weights." << std::endl;
+    unsigned int numberOfTuples = this->Image->GetLargestPossibleRegion().GetSize()[0] * this->Image->GetLargestPossibleRegion().GetSize()[1];
+    this->DebugGraphSinkWeights->SetNumberOfTuples(numberOfTuples);
+  
+    this->DebugGraphSourceWeights->SetNumberOfTuples(numberOfTuples);
+    
+    this->DebugGraphSourceHistogram->SetNumberOfTuples(numberOfTuples);
+    
+    this->DebugGraphSinkHistogram->SetNumberOfTuples(numberOfTuples);
+
+    }
   itk::ImageRegionIterator<ImageType> imageIterator(this->Image, this->Image->GetLargestPossibleRegion());
   itk::ImageRegionIterator<NodeImageType> nodeIterator(this->NodeImage, this->NodeImage->GetLargestPossibleRegion());
   imageIterator.GoToBegin();
@@ -523,8 +519,6 @@ void ImageGraphCut::CreateTWeights()
   // we must handle bins with frequency = 0 specially (because log(0) = -inf)
   // For empty histogram bins we use tinyValue instead of 0.
   float tinyValue = 1e-10;
-
-  std::cout << "Setting T-Weights..." << std::endl;
   
   // These are only for debuging/tracking
   std::vector<float> sinkTWeights;
@@ -533,6 +527,7 @@ void ImageGraphCut::CreateTWeights()
   std::vector<float> sinkHistogramValues;
   
   // Use the colors only for the t-weights
+  unsigned int debugIteratorCounter = 0;
   while(!imageIterator.IsAtEnd())
     {
     PixelType pixel = imageIterator.Get();
@@ -541,86 +536,138 @@ void ImageGraphCut::CreateTWeights()
     float sinkHistogramValue = tinyValue;
     float sourceHistogramValue = tinyValue;
       
-    if(pixel[4])
+    if(pixel[4]) // Pixel is valid
       {
       //std::cout << "Pixels have size: " << pixel.Size() << std::endl;
       
-      HistogramType::MeasurementVectorType measurementVector(this->NumberOfHistogramComponents);
-      for(unsigned int i = 0; i < this->NumberOfHistogramComponents; i++)
+      HistogramType::MeasurementVectorType measurementVector(channelsToUse.size());
+      for(unsigned int component = 0; component < channelsToUse.size(); component++)
 	{
-	//measurementVector[i] = pixel[i];
-	measurementVector[i] = (pixel[i] - this->DifferenceFunction->MinimumOfChannels[i])/(this->DifferenceFunction->MaximumOfChannels[i] - this->DifferenceFunction->MinimumOfChannels[i]);
+	unsigned int channel = channelsToUse[component];
+	//measurementVector[component] = pixel[channel]; // Un-normalized
+	
+	measurementVector[component] = (pixel[channel] - this->DifferenceFunction->MinimumOfChannels[channel])/(this->DifferenceFunction->MaximumOfChannels[channel] - this->DifferenceFunction->MinimumOfChannels[channel]);
 	}
 
       sinkHistogramValue = this->BackgroundHistogram->GetFrequency(this->BackgroundHistogram->GetIndex(measurementVector));
       sourceHistogramValue = this->ForegroundHistogram->GetFrequency(this->ForegroundHistogram->GetIndex(measurementVector));
 
       // Convert the histogram value/frequency to make it as if it came from a normalized histogram
-      sinkHistogramValue /= this->BackgroundHistogram->GetTotalFrequency();
-      sourceHistogramValue /= this->ForegroundHistogram->GetTotalFrequency();
+      float normalizedSinkHistogramValue = sinkHistogramValue / static_cast<float>(this->BackgroundHistogram->GetTotalFrequency());
+      float normalizedSourceHistogramValue = sourceHistogramValue / static_cast<float>(this->ForegroundHistogram->GetTotalFrequency());
 
-      if(sinkHistogramValue <= 0)
+      if(normalizedSinkHistogramValue <= 0)
 	{
-	sinkHistogramValue = tinyValue;
+	normalizedSinkHistogramValue = tinyValue;
 	}
-      if(sourceHistogramValue <= 0)
+      if(normalizedSourceHistogramValue <= 0)
 	{
-	sourceHistogramValue = tinyValue;
+	normalizedSourceHistogramValue = tinyValue;
 	}
 	
+//       std::cout << "Original value: " << pixel[3] << " normalized value: " << measurementVector[0] 
+// 		<< " normalized source histogram count: " << normalizedSourceHistogramValue
+// 		<< " normalized sink histogram count: " << normalizedSinkHistogramValue << std::endl;
+// 		
       //std::cout << "Setting background weight to: " << -this->Lambda*log(sinkHistogramValue) << std::endl;
       //std::cout << "Setting foreground weight to: " << -this->Lambda*log(sourceHistogramValue) << std::endl;
       
-      sinkHistogramValues.push_back(sinkHistogramValue);
-      sourceHistogramValues.push_back(sourceHistogramValue);
-      sinkTWeights.push_back(-this->Lambda*log(sinkHistogramValue));
-      sourceTWeights.push_back(-this->Lambda*log(sourceHistogramValue));
+      sinkHistogramValues.push_back(normalizedSinkHistogramValue);
+      sourceHistogramValues.push_back(normalizedSourceHistogramValue);
+      
+      //float sinkWeight = -this->Lambda*log(normalizedSinkHistogramValue);
+      float sinkWeight = ComputeTEdgeWeight(Helpers::NegativeLog(normalizedSinkHistogramValue));
+      sinkTWeights.push_back(sinkWeight);
+      
+      //float sourceWeight = -this->Lambda*log(normalizedSourceHistogramValue);
+      float sourceWeight = ComputeTEdgeWeight(Helpers::NegativeLog(normalizedSourceHistogramValue));
+      sourceTWeights.push_back(sourceWeight);
       
       // Add the edge to the graph and set its weight
-      this->Graph->add_tweights(nodeIterator.Get(),
-                              -this->Lambda*log(sinkHistogramValue),
-                              -this->Lambda*log(sourceHistogramValue)); // log() is the natural log
+      // See the table on p108 of "Interactive Graph Cuts for Optimal Boundary & Region Segmentation of Objects in N-D Images". 
+      // The source t-link is set to the background probability, and the sink t-link is set to the foreground probability.
+      // That is why the below call is reversed (sink, source) instead of the normal (source, sink). You can think of this as
+      // assigning a "penalty" for cutting the edge. I.e. if the pixel is on the object, there should be no penalty (0 weight) for assigning
+      // it to the foreground.
+      this->Graph->add_tweights(nodeIterator.Get(), sinkWeight, sourceWeight); // Normal call is (node_id, source, sink), see note above.
+      
+      if(this->Debug)
+	{
+	this->DebugGraphSinkWeights->SetValue(debugIteratorCounter, sinkWeight);
+	this->DebugGraphSourceWeights->SetValue(debugIteratorCounter, sourceWeight);
+      
+	this->DebugGraphSourceHistogram->SetValue(debugIteratorCounter, normalizedSourceHistogramValue);
+	this->DebugGraphSinkHistogram->SetValue(debugIteratorCounter, normalizedSinkHistogramValue);
+	}
       }
     else
       {
       this->Graph->add_tweights(nodeIterator.Get(), 0, 0);
+      if(this->Debug)
+	{
+	this->DebugGraphSinkWeights->SetValue(debugIteratorCounter, 0);
+	this->DebugGraphSourceWeights->SetValue(debugIteratorCounter, 0);
+	this->DebugGraphSourceHistogram->SetValue(debugIteratorCounter, 0);
+	this->DebugGraphSinkHistogram->SetValue(debugIteratorCounter, 0);
+	}
       }
-
+    debugIteratorCounter++;
     ++imageIterator;
     ++nodeIterator;
     }
     
-  std::cout << "Average sinkHistogramValue: " << Helpers::VectorAverage<float>(sinkHistogramValues) << std::endl;
-  std::cout << "Average sourceHistogramValue: " << Helpers::VectorAverage<float>(sourceHistogramValues) << std::endl;
-  
-  std::cout << "Max sinkHistogramValue: " << *(std::max_element(sinkHistogramValues.begin(), sinkHistogramValues.end())) << std::endl;
-  std::cout << "Max sourceHistogramValue: " << *(std::max_element(sourceHistogramValues.begin(), sourceHistogramValues.end())) << std::endl;
-  
-  std::cout << "Average sourceTWeights: " << Helpers::VectorAverage<float>(sourceTWeights) << std::endl;
-  std::cout << "Average sinkTWeights: " << Helpers::VectorAverage<float>(sinkTWeights) << std::endl;
-  
-  std::cout << "Max sourceTWeights: " << *(std::max_element(sourceTWeights.begin(), sourceTWeights.end())) << std::endl;
-  std::cout << "Max sinkTWeights: " << *(std::max_element(sinkTWeights.begin(), sinkTWeights.end())) << std::endl;
+  if(this->Debug)
+    {
+    std::cout << "Average sinkHistogramValue: " << Helpers::VectorAverage<float>(sinkHistogramValues) << std::endl;
+    std::cout << "Average sourceHistogramValue: " << Helpers::VectorAverage<float>(sourceHistogramValues) << std::endl;
+    
+    std::cout << "Max sinkHistogramValue: " << *(std::max_element(sinkHistogramValues.begin(), sinkHistogramValues.end())) << std::endl;
+    std::cout << "Max sourceHistogramValue: " << *(std::max_element(sourceHistogramValues.begin(), sourceHistogramValues.end())) << std::endl;
+    
+    std::cout << "Average sourceTWeights: " << Helpers::VectorAverage<float>(sourceTWeights) << std::endl;
+    std::cout << "Average sinkTWeights: " << Helpers::VectorAverage<float>(sinkTWeights) << std::endl;
+    
+    std::cout << "Max sourceTWeights: " << *(std::max_element(sourceTWeights.begin(), sourceTWeights.end())) << std::endl;
+    std::cout << "Max sinkTWeights: " << *(std::max_element(sinkTWeights.begin(), sinkTWeights.end())) << std::endl;
+    }
 }
 
 void ImageGraphCut::SetHardSources(const std::vector<itk::Index<2> >& pixels)
 {
-  // The syntax is add_tweights(location, SourceLinkWeight, SinkLinkWeight).
-  // We want source pixels to be strongly linked to the imaginary source node (so the link won't be cut) and weakly linked
-  // to the sink node (weight 0, so it will certainly be cut if necessary. The reverse holds for sink pixels.
+  // Set very high source weights for the pixels which were selected as foreground by the user
+  
+  // If we are creating the debugging PolyData, we want to use the max of the "normal" t-weights instead of the infinity value so the range for visualization is reasonable
+  float valuesRange[2];
+  this->DebugGraphSourceWeights->GetValueRange(valuesRange);
+  
+  float highValue = std::numeric_limits<float>::max();
+  //float highValue = 2.;
+  // See the table on p108 of "Interactive Graph Cuts for Optimal Boundary & Region Segmentation of Objects in N-D Images". 
+  // We want to set the source link high and the sink link to zero
   for(unsigned int i = 0; i < pixels.size(); i++)
     {
     //std::cout << "Setting t-weight for node: " << this->NodeImage->GetPixel(pixels[i]) << " (pixel " << pixels[i] << ")" << std::endl;
-    this->Graph->add_tweights(this->NodeImage->GetPixel(pixels[i]), std::numeric_limits<float>::max(),0);
+    this->Graph->add_tweights(this->NodeImage->GetPixel(pixels[i]), highValue, 0); // (node_id, source, sink);
     }
 }
 
 void ImageGraphCut::SetHardSinks(const std::vector<itk::Index<2> >& pixels)
 {
   // Set very high sink weights for the pixels which were selected as background by the user
+  
+  // See the table on p108 of "Interactive Graph Cuts for Optimal Boundary & Region Segmentation of Objects in N-D Images". 
+  // We want to set the sink link high and the source link to zero
+  
+  float highValue = std::numeric_limits<float>::max();
+  //float highValue = 2.;
+  
+  // If we are creating the debugging PolyData, we want to use the max of the "normal" t-weights instead of the infinity value so the range for visualization is reasonable
+  float valuesRange[2];
+  this->DebugGraphSinkWeights->GetValueRange(valuesRange);
+  
   for(unsigned int i = 0; i < pixels.size(); i++)
     {
-    this->Graph->add_tweights(this->NodeImage->GetPixel(pixels[i]),0, std::numeric_limits<float>::max());
+    this->Graph->add_tweights(this->NodeImage->GetPixel(pixels[i]), 0, highValue); // (node_id, source, sink);
     }
 }
 
@@ -629,6 +676,7 @@ void ImageGraphCut::CreateGraph()
   if(this->Debug)
     {
     std::cout << "CreateGraph()" << std::endl;
+    CreateDebugPolyData();
     }
     
   CreateGraphNodes();
@@ -641,9 +689,27 @@ void ImageGraphCut::CreateGraph()
   SetHardSinks(this->Sinks);
   SetHardSources(this->Sources);
 
-
+  if(this->Debug)
+    {
+    AssembleAndWriteDebugGraph();
+    }
 }
 
+void ImageGraphCut::AssembleAndWriteDebugGraph()
+{
+  this->DebugGraphPolyData->SetLines(this->DebugGraphLines);
+  this->DebugGraphPolyData->GetCellData()->SetScalars(this->DebugGraphEdgeWeights);
+  this->DebugGraphPolyData->GetPointData()->AddArray(this->DebugGraphSinkWeights);
+  this->DebugGraphPolyData->GetPointData()->AddArray(this->DebugGraphSourceWeights);
+  this->DebugGraphPolyData->GetPointData()->AddArray(this->DebugGraphSourceHistogram);
+  this->DebugGraphPolyData->GetPointData()->AddArray(this->DebugGraphSinkHistogram);
+  
+  // Write the file
+  vtkSmartPointer<vtkXMLPolyDataWriter> writer = vtkSmartPointer<vtkXMLPolyDataWriter>::New();
+  writer->SetFileName("DebugGraph.vtp");
+  writer->SetInput(this->DebugGraphPolyData);
+  writer->Write();
+}
 
 std::vector<itk::Index<2> > ImageGraphCut::GetSources()
 {
@@ -764,11 +830,15 @@ void ImageGraphCut::ConstructNeighborhoodIterator(NeighborhoodIteratorType* iter
 }
 
 
-float ImageGraphCut::ComputeEdgeWeight(float difference)
+float ImageGraphCut::ComputeNEdgeWeight(float difference)
 {
-  // Note this value (this->AverageDepthDifference, this->CameraNoise, etc) must correspond to the variance (aka average) of the difference function you are using over the whole image.
+  // This value should correspond to the variance (aka average) of the difference function you are using over the whole image.
+  float sigma = this->DifferenceFunction->AverageDifference;
   
-  
-  
-  return exp(-pow(difference,2)/(2.0*this->DifferenceFunction->AverageDifference*this->DifferenceFunction->AverageDifference));
+  return exp(-pow(difference,2)/(2.0*sigma*sigma));
+}
+
+float ImageGraphCut::ComputeTEdgeWeight(float value)
+{
+  return this->Lambda * value;
 }

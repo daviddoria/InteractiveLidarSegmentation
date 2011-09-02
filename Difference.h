@@ -77,7 +77,10 @@ public:
   DifferenceDepth(const Difference& input) : Difference(input) {}
   
   // Default constructor
-  DifferenceDepth(){}
+  DifferenceDepth()
+  {
+    std::cout << "Created a DifferenceDepth object." << std::endl;
+  }
   
   float GetDifference(itk::Index<2> pixel)
   {
@@ -93,7 +96,10 @@ public:
   DifferenceColor(const Difference& input) : Difference(input) {}
   
   // Default constructor
-  DifferenceColor(){}
+  DifferenceColor()
+  {
+    std::cout << "Created a DifferenceColor object." << std::endl;
+  }
   
   float GetDifference(itk::Index<2> pixel)
   {
@@ -109,7 +115,10 @@ public:
   DifferenceMaxOfColorOrDepth(const Difference& input) : Difference(input) {}
   
   // Default constructor
-  DifferenceMaxOfColorOrDepth(){}
+  DifferenceMaxOfColorOrDepth()
+  {
+    std::cout << "Created a DifferenceMaxOfColorOrDepth object." << std::endl;
+  }
   
   float GetDifference(itk::Index<2> pixel)
   {

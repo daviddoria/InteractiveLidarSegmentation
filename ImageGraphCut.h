@@ -21,6 +21,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // VTK
 #include <vtkSmartPointer.h>
 class vtkPolyData;
+class vtkCellArray;
+class vtkFloatArray;
 
 // ITK
 #include "itkImage.h"
@@ -101,13 +103,19 @@ public:
   bool Debug;
 
   bool IncludeDepthInHistogram;
+  bool IncludeColorInHistogram;
+  
+  bool IncludeDepthInDifference;
+  bool IncludeColorInDifference;
+  
   unsigned int NumberOfHistogramComponents;
   
   bool SecondStep;
   
   float BackgroundThreshold;
-protected:
 
+protected:
+  
   void CreateGraphNodes();
   
   // A Kolmogorov graph object
@@ -131,12 +139,10 @@ protected:
   // An image which keeps tracks of the mapping between pixel index and graph node id
   NodeImageType::Pointer NodeImage;
 
-
   // Create the histograms from the users selections
-  //void CreateColorHistogramSamples();
-  //void CreateFullHistogramSamples();
-  //void CreateColorAndDepthHistogramSamples();
-  void CreateHistogram(unsigned int numberOfComponents);
+  void CreateHistograms();
+  const HistogramType* CreateHistogram(std::vector<itk::Index<2> > pixels, std::vector<unsigned int> channelsToUse);
+  //void CreateHistogram(std::vector<itk::Index<2> > pixels, std::vector<unsigned int> channelsToUse, const HistogramType*);
 
   // Create a Kolmogorov graph structure from the image and selections
   void CreateGraphManually();
@@ -147,30 +153,41 @@ protected:
   // Perform the s-t min cut
   void CutGraph();
 
-
+  // Several times throughout the algorithm we will need to traverse the image, looking exactly once at each edge. This iterator
+  // creation is lengthy, so we do it once in this function and call it from everywhere we need it.
   void ConstructNeighborhoodIterator(NeighborhoodIteratorType* iterator, std::vector<NeighborhoodIteratorType::OffsetType>& neighbors);
   
   // Member variables
 
-
+  // The histograms of the source and sink pixels
   const HistogramType* ForegroundHistogram;
   const HistogramType* BackgroundHistogram;
-
 
   // The image to be segmented
   ImageType::Pointer Image;
 
+  // We need a 1x1 radius quite often, so we can create it in a single line with this function
   itk::Size<2> Get1x1Radius();
-
-  std::vector<float> AllDepthDifferences;
-
-  std::vector<float> AllColorDifferences;
   
   // This function performs the negative exponential weighting
-  float ComputeEdgeWeight(float difference);
+  float ComputeNEdgeWeight(float difference);
   
-  
+  float ComputeTEdgeWeight(float histogramValue);
 
+  // Debugging variables/functions
+  vtkSmartPointer<vtkPolyData> DebugGraphPolyData;
+  vtkSmartPointer<vtkCellArray> DebugGraphLines;
+  vtkSmartPointer<vtkFloatArray> DebugGraphEdgeWeights;
+  vtkSmartPointer<vtkFloatArray> DebugGraphSourceWeights;
+  vtkSmartPointer<vtkFloatArray> DebugGraphSinkWeights;
+  vtkSmartPointer<vtkFloatArray> DebugGraphSourceHistogram;
+  vtkSmartPointer<vtkFloatArray> DebugGraphSinkHistogram;
+  itk::Image<unsigned int, 2>::Pointer DebugGraphPointIds;
+  void CreateDebugPolyData();
+  void AssembleAndWriteDebugGraph();
+    
+  std::vector<float> AllDepthDifferences;
+  std::vector<float> AllColorDifferences;
 };
 
 #endif

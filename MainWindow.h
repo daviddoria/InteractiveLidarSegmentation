@@ -53,8 +53,12 @@ public slots:
   void on_actionSaveSelectionsAsText_triggered();
   void on_actionLoadSelectionsFromImage_triggered();
   void on_actionLoadSelectionsFromText_triggered();
+  void on_actionLoadForegroundSelectionsFromImage_triggered();
 
   // Buttons, radio buttons, and sliders
+  void on_btnGenerateNeighborSinks_clicked();
+  void on_btnErodeSources_clicked();
+  
   void on_btnClearSelections_clicked();
   void on_btnClearBackground_clicked();
   void on_btnClearForeground_clicked();
@@ -77,6 +81,8 @@ public slots:
   
 protected:
 
+  void GenerateNeighborSinks();
+  
   void DisplaySegmentationResult();
   
   // A class to do the main computations in a separate thread so we can display a marquee progress bar.
@@ -128,6 +134,8 @@ protected:
   bool Flipped;
   void SetCameraPosition1();
   void SetCameraPosition2();
+
+  ImageType::Pointer Image;
 };
 
 #endif

@@ -24,6 +24,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "InteractorStyleScribble.h"
 
 // ITK
+#include "itkBinaryBallStructuringElement.h"
+#include "itkBinaryDilateImageFilter.h"
+#include "itkBinaryErodeImageFilter.h"
 #include "itkCastImageFilter.h"
 #include "itkCovariantVector.h"
 #include "itkImageFileReader.h"
@@ -31,6 +34,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "itkImageRegionConstIteratorWithIndex.h"
 #include "itkLineIterator.h"
 #include "itkNthElementImageAdaptor.h"
+#include "itkXorImageFilter.h"
 
 // VTK
 #include <vtkCamera.h>
@@ -79,13 +83,17 @@ MainWindow::MainWindow(QWidget *parent)
   // Left pane
   this->OriginalImageData = vtkSmartPointer<vtkImageData>::New();
   this->OriginalImageSliceMapper = vtkSmartPointer<vtkImageSliceMapper>::New();
+  this->OriginalImageSliceMapper->SetInputConnection(this->OriginalImageData->GetProducerPort());
   this->OriginalImageSlice = vtkSmartPointer<vtkImageSlice>::New();
+  this->OriginalImageSlice->SetMapper(this->OriginalImageSliceMapper);
 
   this->LeftRenderer = vtkSmartPointer<vtkRenderer>::New();
   this->LeftRenderer->GradientBackgroundOn();
   this->LeftRenderer->SetBackground(this->BackgroundColor);
   this->LeftRenderer->SetBackground2(1,1,1);
   this->qvtkWidgetLeft->GetRenderWindow()->AddRenderer(this->LeftRenderer);
+
+  this->LeftRenderer->AddViewProp(this->OriginalImageSlice);
 
   this->LeftInteractorStyle = vtkSmartPointer<InteractorStyleScribble>::New();
   this->LeftInteractorStyle->AddObserver(this->LeftInteractorStyle->ScribbleEvent, this, &MainWindow::ScribbleEventHandler);
@@ -95,16 +103,16 @@ MainWindow::MainWindow(QWidget *parent)
   // Right pane
   this->ResultImageData = vtkSmartPointer<vtkImageData>::New();
   this->ResultImageSliceMapper = vtkSmartPointer<vtkImageSliceMapper>::New();
+  this->ResultImageSliceMapper->SetInputConnection(this->ResultImageData->GetProducerPort());
   this->ResultImageSlice = vtkSmartPointer<vtkImageSlice>::New();
+  this->ResultImageSlice->SetMapper(this->ResultImageSliceMapper);
   
   this->RightRenderer = vtkSmartPointer<vtkRenderer>::New();
   this->RightRenderer->GradientBackgroundOn();
   this->RightRenderer->SetBackground(this->BackgroundColor);
   this->RightRenderer->SetBackground2(1,1,1);
   this->qvtkWidgetRight->GetRenderWindow()->AddRenderer(this->RightRenderer);
-
-  this->ResultImageSliceMapper->SetInputConnection(this->ResultImageData->GetProducerPort());
-  this->ResultImageSlice->SetMapper(this->ResultImageSliceMapper);
+  
   this->RightRenderer->AddViewProp(this->ResultImageSlice);
 
   this->RightInteractorStyle = vtkSmartPointer<InteractorStyleImageNoLevel>::New();
@@ -115,10 +123,20 @@ MainWindow::MainWindow(QWidget *parent)
   this->SourceSinkImageData = vtkSmartPointer<vtkImageData>::New();
   
   this->LeftSourceSinkImageSliceMapper = vtkSmartPointer<vtkImageSliceMapper>::New();
+  this->LeftSourceSinkImageSliceMapper->SetInputConnection(this->SourceSinkImageData->GetProducerPort());
+  
   this->LeftSourceSinkImageSlice = vtkSmartPointer<vtkImageSlice>::New();
+  this->LeftSourceSinkImageSlice->SetMapper(this->LeftSourceSinkImageSliceMapper);
+  
+  this->LeftRenderer->AddViewProp(this->LeftSourceSinkImageSlice);
   
   this->RightSourceSinkImageSliceMapper = vtkSmartPointer<vtkImageSliceMapper>::New();
+  this->RightSourceSinkImageSliceMapper->SetInputConnection(this->SourceSinkImageData->GetProducerPort());
+  
   this->RightSourceSinkImageSlice = vtkSmartPointer<vtkImageSlice>::New();
+  this->RightSourceSinkImageSlice->SetMapper(this->RightSourceSinkImageSliceMapper);
+
+  this->RightRenderer->AddViewProp(this->RightSourceSinkImageSlice);
   
   // Default GUI settings
   this->radForeground->setChecked(true);
@@ -129,6 +147,8 @@ MainWindow::MainWindow(QWidget *parent)
   actionOpenImage->setIcon(openIcon);
   this->toolBar->addAction(actionOpenImage);
 
+  UpdateLambda();
+  
   // Save buttons
   QIcon saveIcon = QIcon::fromTheme("document-save");
   actionSaveSegmentation->setIcon(saveIcon);
@@ -140,7 +160,7 @@ MainWindow::MainWindow(QWidget *parent)
   //QTimer::singleShot(0, this, SLOT(sldHistogramBins_sliderMoved()));
   this->lblHistogramBins->setNum(this->sldHistogramBins->value());
   
-
+  this->Image = ImageType::New();
 }
 
 void MainWindow::on_actionExit_triggered()
@@ -198,30 +218,16 @@ void MainWindow::on_actionSaveSegmentation_triggered()
 
   QString fileName = QFileDialog::getSaveFileName(this,
     "Save Segment Mask Image", ".", "PNG Files (*.png)");
-/*
-  // Convert the image from a 1D vector image to an unsigned char image
-  typedef itk::CastImageFilter< GrayscaleImageType, itk::Image<itk::CovariantVector<unsigned char, 1>, 2 > > CastFilterType;
-  CastFilterType::Pointer castFilter = CastFilterType::New();
-  castFilter->SetInput(this->GraphCut->GetSegmentMask());
 
-  typedef itk::NthElementImageAdaptor< itk::Image<itk:: CovariantVector<unsigned char, 1>, 2 >,
-    unsigned char> ImageAdaptorType;
 
-  ImageAdaptorType::Pointer adaptor = ImageAdaptorType::New();
-  adaptor->SelectNthElement(0);
-  adaptor->SetImage(castFilter->GetOutput());
-*/
-/*
   // Write the file (object is white)
-  //typedef  itk::ImageFileWriter< ImageAdaptorType > WriterType;
   typedef  itk::ImageFileWriter< MaskImageType > WriterType;
   WriterType::Pointer writer = WriterType::New();
   writer->SetFileName(fileName.toStdString());
-  //writer->SetInput(adaptor);
   writer->SetInput(this->GraphCut.GetSegmentMask());
   writer->Update();
-  */
-
+  
+  /*
   // Write the inverted file (object is black)
   MaskImageType::Pointer inverted = MaskImageType::New();
   Helpers::InvertBinaryImage(this->GraphCut.GetSegmentMask(), inverted);
@@ -232,7 +238,7 @@ void MainWindow::on_actionSaveSegmentation_triggered()
   writer->SetFileName(fileName.toStdString());
   writer->SetInput(inverted);
   writer->Update();
-
+  */
 }
 
 void MainWindow::on_actionOpenImage_triggered()
@@ -271,12 +277,12 @@ void MainWindow::DisplaySegmentationResult()
   UpdateSelections();
   
   // We currently remove everything and re-add everything - see note about the "should be unnecessary" lines below.
-  this->RightRenderer->RemoveAllViewProps();
-  this->RightRenderer->AddViewProp(this->RightSourceSinkImageSlice);
+  //this->RightRenderer->RemoveAllViewProps();
+  //this->RightRenderer->AddViewProp(this->RightSourceSinkImageSlice);
   
   // These should be unnecessary because they are connected in the constructor... but the output is not displayed without them
-  this->ResultImageSlice->SetMapper(this->ResultImageSliceMapper);
-  this->RightRenderer->AddViewProp(this->ResultImageSlice);
+  //this->ResultImageSlice->SetMapper(this->ResultImageSliceMapper);
+  //this->RightRenderer->AddViewProp(this->ResultImageSlice);
 
   
   this->RightRenderer->ResetCamera();
@@ -315,12 +321,14 @@ void MainWindow::UpdateSelections()
   
   Helpers::SetPixels(this->SourceSinkImageData, this->Sources, green);
   Helpers::SetPixels(this->SourceSinkImageData, this->Sinks, red);
+
+  this->SourceSinkImageData->Modified();
   
   std::cout << this->Sources.size() << " sources." << std::endl;
   std::cout << this->Sinks.size() << " sinks." << std::endl;
   
-  this->LeftSourceSinkImageSliceMapper->Modified();
-  this->RightSourceSinkImageSliceMapper->Modified();
+  //this->LeftSourceSinkImageSliceMapper->Modified();
+  //this->RightSourceSinkImageSliceMapper->Modified();
   
   this->Refresh();
 }
@@ -458,6 +466,153 @@ void MainWindow::on_actionSaveSelectionsAsText_triggered()
   fout.close();
 }
 
+void MainWindow::on_actionLoadForegroundSelectionsFromImage_triggered()
+{
+  QString filename = QFileDialog::getOpenFileName(this,
+     "Open Image", ".", "PNG Files (*.png)");
+
+  if(filename.isEmpty())
+    {
+    return;
+    }
+
+  typedef  itk::ImageFileReader< MaskImageType  > ReaderType;
+  ReaderType::Pointer reader = ReaderType::New();
+  reader->SetFileName(filename.toStdString());
+  reader->Update();
+
+  std::vector<itk::Index<2> > pixels = Helpers::GetNonZeroPixels(reader->GetOutput());
+
+  this->Sources = pixels;
+
+  UpdateSelections();
+}
+
+void MainWindow::on_btnGenerateNeighborSinks_clicked()
+{
+  GenerateNeighborSinks();
+}
+
+void MainWindow::on_btnErodeSources_clicked()
+{
+  MaskImageType::Pointer sourcesImage = MaskImageType::New();
+  sourcesImage->SetRegions(this->ImageRegion);
+  Helpers::IndicesToBinaryImage(this->Sources, sourcesImage);
+
+  typedef itk::BinaryBallStructuringElement<MaskImageType::PixelType,2> StructuringElementType;
+  StructuringElementType structuringElementBig;
+  structuringElementBig.SetRadius(3);
+  structuringElementBig.CreateStructuringElement();
+
+  typedef itk::BinaryErodeImageFilter <MaskImageType, MaskImageType, StructuringElementType> BinaryErodeImageFilterType;
+
+  BinaryErodeImageFilterType::Pointer erodeFilter = BinaryErodeImageFilterType::New();
+  erodeFilter->SetInput(sourcesImage);
+  erodeFilter->SetKernel(structuringElementBig);
+  erodeFilter->Update();
+
+  //this->Sources.clear();
+
+  this->Sources = Helpers::GetNonZeroPixels(erodeFilter->GetOutput());
+
+  UpdateSelections();
+}
+
+void MainWindow::GenerateNeighborSinks()
+{
+  MaskImageType::Pointer sourcesImage = MaskImageType::New();
+  sourcesImage->SetRegions(this->ImageRegion);
+  Helpers::IndicesToBinaryImage(this->Sources, sourcesImage);
+  
+  // Dilate the mask
+  std::cout << "Dilating mask..." << std::endl;
+  typedef itk::BinaryBallStructuringElement<MaskImageType::PixelType,2> StructuringElementType;
+  StructuringElementType structuringElementBig;
+  structuringElementBig.SetRadius(7);
+  structuringElementBig.CreateStructuringElement();
+
+  typedef itk::BinaryDilateImageFilter <MaskImageType, MaskImageType, StructuringElementType> BinaryDilateImageFilterType;
+
+  BinaryDilateImageFilterType::Pointer dilateFilterBig = BinaryDilateImageFilterType::New();
+  dilateFilterBig->SetInput(sourcesImage);
+  dilateFilterBig->SetKernel(structuringElementBig);
+  dilateFilterBig->Update();
+
+  StructuringElementType structuringElementSmall;
+  structuringElementSmall.SetRadius(6);
+  structuringElementSmall.CreateStructuringElement();
+  
+  BinaryDilateImageFilterType::Pointer dilateFilterSmall = BinaryDilateImageFilterType::New();
+  dilateFilterSmall->SetInput(sourcesImage);
+  dilateFilterSmall->SetKernel(structuringElementSmall);
+  dilateFilterSmall->Update();
+
+  //Helpers::WriteImage<MaskImageType>(dilateFilter->GetOutput(), "dilated.png");
+
+  // Binary XOR the images to get the difference image
+  std::cout << "XORing masks..." << std::endl;
+  typedef itk::XorImageFilter <MaskImageType> XorImageFilterType;
+
+  XorImageFilterType::Pointer xorFilter = XorImageFilterType::New();
+  xorFilter->SetInput1(dilateFilterBig->GetOutput());
+  xorFilter->SetInput2(dilateFilterSmall->GetOutput());
+  xorFilter->Update();
+
+  Helpers::WriteImage<MaskImageType>(xorFilter->GetOutput(), "boundaryOfSegmentation.png");
+
+  // Iterate over the border pixels. If the closest pixel in the original segmentation has a depth greater than a threshold, mark it as a new sink. Else, do not.
+  std::cout << "Determining which boundary pixels should be declared background..." << std::endl;
+  //std::cout << "There should be " << Helpers::CountNonZeroPixels(xorFilter->GetOutput()) << " considered." << std::endl;
+  std::vector<itk::Index<2> > newSinks;
+  itk::ImageRegionIterator<MaskImageType> imageIterator(xorFilter->GetOutput(), xorFilter->GetOutput()->GetLargestPossibleRegion());
+
+  unsigned int consideredCounter = 0;
+  unsigned int backgroundCounter = 0;
+  while(!imageIterator.IsAtEnd())
+    {
+    if(imageIterator.Get()) // If the current pixel is in question
+      {
+      consideredCounter++;
+      //std::cout << "Considering pixel " << consideredCounter << " (index " << imageIterator.GetIndex() << ")" << std::endl;
+      ImageType::PixelType currentPixel = this->Image->GetPixel(imageIterator.GetIndex());
+      itk::Index<2> closestPixelIndex = Helpers::FindClosestNonZeroPixel(sourcesImage, imageIterator.GetIndex());
+      //std::cout << "Closest pixel is " << closestPixelIndex << std::endl;
+      ImageType::PixelType closestPixel = this->Image->GetPixel(closestPixelIndex);
+      //std::cout << "Current pixel depth value is " << currentPixel[3] << std::endl;
+      //std::cout << "Closest pixel depth value is " << closestPixel[3] << std::endl;
+      float difference = fabs(currentPixel[3]-closestPixel[3]);
+      if(difference > this->txtBackgroundThreshold->text().toFloat())
+        {
+        //std::cout << "Difference was " << difference << " so this is a sink pixel." << std::endl;
+        newSinks.push_back(imageIterator.GetIndex());
+        backgroundCounter++;
+        }
+      else
+        {
+        //std::cout << "Difference was " << difference << " so this is NOT a sink pixel." << std::endl;
+        }
+      }
+
+    ++imageIterator;
+    }
+
+  // Save the new sink pixels for inspection
+  UnsignedCharScalarImageType::Pointer newSinksImage = UnsignedCharScalarImageType::New();
+  newSinksImage->SetRegions(this->Image->GetLargestPossibleRegion());
+  newSinksImage->Allocate();
+
+  Helpers::IndicesToBinaryImage(newSinks, newSinksImage);
+  Helpers::WriteImage<MaskImageType>(newSinksImage, "newSinks.png");
+
+  //std::cout << "Out of " << consideredCounter << " pixels considered, " << backgroundCounter << " were declared background." << std::endl;
+  // Set the new sinks
+  std::cout << "Setting " << newSinks.size() << " new sinks." << std::endl;
+
+  // Modify the list of sinks so it can be retrieved by the MainWindow after the segmentation is finished
+  this->Sinks.insert(this->Sinks.end(), newSinks.begin(), newSinks.end());
+
+  UpdateSelections();
+}
 
 void MainWindow::on_actionLoadSelectionsFromImage_triggered()
 {
@@ -499,6 +654,8 @@ void MainWindow::on_actionLoadSelectionsFromImage_triggered()
  
     ++imageIterator;
     }
+
+  UpdateSelections();
 }
 
 
@@ -548,9 +705,13 @@ void MainWindow::on_actionLoadSelectionsFromText_triggered()
 void MainWindow::on_btnCut_clicked()
 {
   this->GraphCut.Debug = this->chkDebug->isChecked();
-  this->GraphCut.SecondStep = this->chkSecondStep->isChecked();
+  //this->GraphCut.SecondStep = this->chkSecondStep->isChecked();
   
   this->GraphCut.IncludeDepthInHistogram = this->chkDepthHistogram->isChecked();
+  this->GraphCut.IncludeColorInHistogram = this->chkColorHistogram->isChecked();
+  
+  this->GraphCut.IncludeDepthInDifference = this->chkDepthDifference->isChecked();
+  this->GraphCut.IncludeColorInDifference= this->chkColorDifference->isChecked();
  
   this->GraphCut.BackgroundThreshold = this->txtBackgroundThreshold->text().toDouble();
   
@@ -560,23 +721,23 @@ void MainWindow::on_btnCut_clicked()
     }
 
   // Setup the Difference object
-  if(this->radDepthOnly->isChecked())
+  if(this->chkDepthDifference->isChecked() && !this->chkColorDifference->isChecked())
     {
     this->GraphCut.DifferenceFunction = new DifferenceDepth;
     //this->GraphCut.DifferenceFunction = new DifferenceDepthDataNormalized;
     }
-  else if(this->radColorOnly->isChecked())
+  else if(!this->chkDepthDifference->isChecked() && this->chkColorDifference->isChecked())
     {
     this->GraphCut.DifferenceFunction = new DifferenceColor;
     //this->GraphCut.DifferenceFunction = new DifferenceColorDataNormalized;
     }
-  else if(this->radCombination->isChecked())
+  else if(this->chkDepthDifference->isChecked() && this->chkColorDifference->isChecked())
     {
     this->GraphCut.DifferenceFunction = new DifferenceMaxOfColorOrDepth;
     }
   else
     {
-    std::cerr << "Something is wrong - the radio button must be one of radDepthOnly, radColorOnly, or radCombination." << std::endl;
+    std::cerr << "Something is wrong - you must select depth, color, or both." << std::endl;
     exit(-1);
     }
   
@@ -662,34 +823,38 @@ void MainWindow::OpenFile()
     }
 
   // Store the path so that temp files can be written to the same path as the input image
-  // path = myFile.absolutePath().toStdString()
+  QFileInfo fileInfo(filename);
+  std::string workingDirectory = fileInfo.absoluteDir().absolutePath().toStdString() + "/";
+  std::cout << "Working directory set to: " << workingDirectory << std::endl;
+  QDir::setCurrent(QString(workingDirectory.c_str()));
   
-  // Clear the scribbles
-  //this->LeftInteractorStyle->ClearSelections();
-
   // Read file
   itk::ImageFileReader<ImageType>::Pointer reader = itk::ImageFileReader<ImageType>::New();
 
   reader->SetFileName(filename.toStdString());
   reader->Update();
 
+  Helpers::DeepCopyVectorImage<ImageType>(reader->GetOutput(), this->Image);
+  
   this->ImageRegion = reader->GetOutput()->GetLargestPossibleRegion();
 
   this->GraphCut.SetImage(reader->GetOutput());
-
+  
   // Clear everything
-  this->LeftRenderer->RemoveAllViewProps();
-  this->RightRenderer->RemoveAllViewProps();
+  //this->LeftRenderer->RemoveAllViewProps();
+  //this->RightRenderer->RemoveAllViewProps();
   this->Sources.clear();
   this->Sinks.clear();
 
+  UpdateSelections();
+  
   // Convert the ITK image to a VTK image and display it
   Helpers::ITKImagetoVTKImage(reader->GetOutput(), this->OriginalImageData);
 
   this->OriginalImageSliceMapper->SetInputConnection(this->OriginalImageData->GetProducerPort());
   this->OriginalImageSlice->SetMapper(this->OriginalImageSliceMapper);
 
-  this->LeftRenderer->AddViewProp(this->OriginalImageSlice);
+  //this->LeftRenderer->AddViewProp(this->OriginalImageSlice);
   this->LeftRenderer->ResetCamera();
   
   // Setup the scribble canvas

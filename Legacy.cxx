@@ -720,3 +720,47 @@ void Form::StopProgressSlot()
   this->progressBar->hide();
 }
 */
+
+
+void MainWindow::on_actionSaveSegmentation_triggered()
+{
+  // Ask the user for a filename to save the segment mask image to
+
+  QString fileName = QFileDialog::getSaveFileName(this,
+    "Save Segment Mask Image", ".", "PNG Files (*.png)");
+/*
+  // Convert the image from a 1D vector image to an unsigned char image
+  typedef itk::CastImageFilter< GrayscaleImageType, itk::Image<itk::CovariantVector<unsigned char, 1>, 2 > > CastFilterType;
+  CastFilterType::Pointer castFilter = CastFilterType::New();
+  castFilter->SetInput(this->GraphCut->GetSegmentMask());
+
+  typedef itk::NthElementImageAdaptor< itk::Image<itk:: CovariantVector<unsigned char, 1>, 2 >,
+    unsigned char> ImageAdaptorType;
+
+  ImageAdaptorType::Pointer adaptor = ImageAdaptorType::New();
+  adaptor->SelectNthElement(0);
+  adaptor->SetImage(castFilter->GetOutput());
+*/
+/*
+  // Write the file (object is white)
+  //typedef  itk::ImageFileWriter< ImageAdaptorType > WriterType;
+  typedef  itk::ImageFileWriter< MaskImageType > WriterType;
+  WriterType::Pointer writer = WriterType::New();
+  writer->SetFileName(fileName.toStdString());
+  //writer->SetInput(adaptor);
+  writer->SetInput(this->GraphCut.GetSegmentMask());
+  writer->Update();
+  */
+
+  // Write the inverted file (object is black)
+  MaskImageType::Pointer inverted = MaskImageType::New();
+  Helpers::InvertBinaryImage(this->GraphCut.GetSegmentMask(), inverted);
+
+  //typedef  itk::ImageFileWriter< ImageAdaptorType > WriterType;
+  typedef  itk::ImageFileWriter< MaskImageType > WriterType;
+  WriterType::Pointer writer = WriterType::New();
+  writer->SetFileName(fileName.toStdString());
+  writer->SetInput(inverted);
+  writer->Update();
+
+}
