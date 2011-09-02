@@ -35,6 +35,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "itkLineIterator.h"
 #include "itkNthElementImageAdaptor.h"
 #include "itkXorImageFilter.h"
+#include "itkRegionOfInterestImageFilter.h"
+#include "itkVectorIndexSelectionCastImageFilter.h"
+#include "itkStatisticsImageFilter.h"
 
 // VTK
 #include <vtkCamera.h>
@@ -62,6 +65,7 @@ MainWindow::MainWindow(QWidget *parent)
   
   // Global settings
   this->Flipped = false;
+  this->Debug = true;
   
   // Qt connections
   connect( this->sldHistogramBins, SIGNAL( valueChanged(int) ), this, SLOT(sldHistogramBins_valueChanged()));
@@ -527,6 +531,32 @@ void MainWindow::GenerateNeighborSinks()
   // Dilate the mask
   std::cout << "Dilating mask..." << std::endl;
   typedef itk::BinaryBallStructuringElement<MaskImageType::PixelType,2> StructuringElementType;
+  StructuringElementType structuringElement;
+  structuringElement.SetRadius(1);
+  structuringElement.CreateStructuringElement();
+
+  typedef itk::BinaryDilateImageFilter <MaskImageType, MaskImageType, StructuringElementType> BinaryDilateImageFilterType;
+
+  BinaryDilateImageFilterType::Pointer dilateFilter = BinaryDilateImageFilterType::New();
+  dilateFilter->SetInput(sourcesImage);
+  dilateFilter->SetKernel(structuringElement);
+  dilateFilter->Update();
+
+  // Binary XOR the images to get the difference image
+  std::cout << "XORing masks..." << std::endl;
+  typedef itk::XorImageFilter <MaskImageType> XorImageFilterType;
+
+  XorImageFilterType::Pointer xorFilter = XorImageFilterType::New();
+  xorFilter->SetInput1(dilateFilter->GetOutput());
+  xorFilter->SetInput2(sourcesImage);
+  xorFilter->Update();
+
+  Helpers::WriteImage<MaskImageType>(xorFilter->GetOutput(), "boundaryOfSegmentation.png");
+  
+  /*
+  // Dilate the mask
+  std::cout << "Dilating mask..." << std::endl;
+  typedef itk::BinaryBallStructuringElement<MaskImageType::PixelType,2> StructuringElementType;
   StructuringElementType structuringElementBig;
   structuringElementBig.SetRadius(7);
   structuringElementBig.CreateStructuringElement();
@@ -559,10 +589,13 @@ void MainWindow::GenerateNeighborSinks()
   xorFilter->Update();
 
   Helpers::WriteImage<MaskImageType>(xorFilter->GetOutput(), "boundaryOfSegmentation.png");
-
+  */
+  
   // Iterate over the border pixels. If the closest pixel in the original segmentation has a depth greater than a threshold, mark it as a new sink. Else, do not.
   std::cout << "Determining which boundary pixels should be declared background..." << std::endl;
   //std::cout << "There should be " << Helpers::CountNonZeroPixels(xorFilter->GetOutput()) << " considered." << std::endl;
+  
+  /*
   std::vector<itk::Index<2> > newSinks;
   itk::ImageRegionIterator<MaskImageType> imageIterator(xorFilter->GetOutput(), xorFilter->GetOutput()->GetLargestPossibleRegion());
 
@@ -595,7 +628,77 @@ void MainWindow::GenerateNeighborSinks()
 
     ++imageIterator;
     }
+  */
+  std::vector<itk::Index<2> > newSinks;
+  itk::ImageRegionIterator<MaskImageType> imageIterator(xorFilter->GetOutput(), xorFilter->GetOutput()->GetLargestPossibleRegion());
 
+  typedef itk::VectorIndexSelectionCastImageFilter<ImageType, FloatScalarImageType> IndexSelectionType;
+  IndexSelectionType::Pointer indexSelectionFilter = IndexSelectionType::New();
+  indexSelectionFilter->SetIndex(3);
+  indexSelectionFilter->SetInput(this->Image);
+  indexSelectionFilter->Update();
+  
+  FloatScalarImageType::Pointer depthImage = indexSelectionFilter->GetOutput();
+  
+  std::vector<itk::Index<2> > consideredPixels;
+  while(!imageIterator.IsAtEnd())
+    {
+    if(imageIterator.Get()) // If the current pixel is in question
+      {
+      consideredPixels.push_back(imageIterator.GetIndex());
+      //std::cout << "Considering pixel " << consideredCounter << " (index " << imageIterator.GetIndex() << ")" << std::endl;
+      ImageType::PixelType currentPixel = this->Image->GetPixel(imageIterator.GetIndex());
+      
+      typedef itk::RegionOfInterestImageFilter< FloatScalarImageType, FloatScalarImageType > RegionOfInterestImageFilterType;
+      RegionOfInterestImageFilterType::Pointer regionOfInterestImageFilter = RegionOfInterestImageFilterType::New();
+      //unsigned int radius = 2;
+      unsigned int radius = this->txtBackgroundCheckRadius->text().toUInt();
+      ImageType::IndexType start;
+      start[0] = imageIterator.GetIndex()[0] - radius;
+      start[1] = imageIterator.GetIndex()[1] - radius;
+    
+      ImageType::SizeType size;
+      size.Fill(radius*2 + 1);
+    
+      ImageType::RegionType desiredRegion(start, size);
+      //std::cout << "Checking pixel: " << imageIterator.GetIndex() << " with region: " << desiredRegion << std::endl;
+      
+      regionOfInterestImageFilter->SetRegionOfInterest(desiredRegion);
+      regionOfInterestImageFilter->SetInput(depthImage);
+      regionOfInterestImageFilter->Update();
+      
+      typedef itk::StatisticsImageFilter<FloatScalarImageType> StatisticsImageFilterType;
+      StatisticsImageFilterType::Pointer statisticsImageFilter = StatisticsImageFilterType::New ();
+      statisticsImageFilter->SetInput(regionOfInterestImageFilter->GetOutput());
+      statisticsImageFilter->Update();
+  
+      float difference = statisticsImageFilter->GetMaximum() - statisticsImageFilter->GetMinimum();
+      if(this->Debug)
+	{
+	std::cout << "Max: " << statisticsImageFilter->GetMaximum() 
+		  << " min: " <<  statisticsImageFilter->GetMinimum() << std::endl;
+	}
+      
+      if(difference > this->txtBackgroundThreshold->text().toFloat())
+        {
+        //std::cout << "Difference was " << difference << " so this is a sink pixel." << std::endl;
+        newSinks.push_back(imageIterator.GetIndex());
+        }
+      else
+        {
+        //std::cout << "Difference was " << difference << " so this is NOT a sink pixel." << std::endl;
+        }
+      }
+
+    ++imageIterator;
+    }
+  
+  unsigned char blue[3] = {0, 0, 255};
+  
+  Helpers::SetPixels(this->SourceSinkImageData, consideredPixels, blue);
+  this->SourceSinkImageData->Modified();
+  this->Refresh();
+  
   // Save the new sink pixels for inspection
   UnsignedCharScalarImageType::Pointer newSinksImage = UnsignedCharScalarImageType::New();
   newSinksImage->SetRegions(this->Image->GetLargestPossibleRegion());

@@ -136,6 +136,8 @@ protected:
   void SetCameraPosition2();
 
   ImageType::Pointer Image;
+  
+  bool Debug;
 };
 
 #endif

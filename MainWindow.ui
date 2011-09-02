@@ -495,7 +495,7 @@
             <widget class="QLabel" name="label_13">
              <property name="geometry">
               <rect>
-               <x>10</x>
+               <x>0</x>
                <y>120</y>
                <width>161</width>
                <height>17</height>
@@ -508,14 +508,43 @@
             <widget class="QLineEdit" name="txtBackgroundThreshold">
              <property name="geometry">
               <rect>
-               <x>140</x>
-               <y>140</y>
+               <x>150</x>
+               <y>110</y>
                <width>41</width>
                <height>27</height>
               </rect>
              </property>
              <property name="text">
               <string>0.4</string>
+             </property>
+            </widget>
+            <widget class="QLabel" name="label_11">
+             <property name="geometry">
+              <rect>
+               <x>10</x>
+               <y>140</y>
+               <width>181</width>
+               <height>17</height>
+              </rect>
+             </property>
+             <property name="frameShape">
+              <enum>QFrame::NoFrame</enum>
+             </property>
+             <property name="text">
+              <string>Background check radius:</string>
+             </property>
+            </widget>
+            <widget class="QLineEdit" name="txtBackgroundCheckRadius">
+             <property name="geometry">
+              <rect>
+               <x>40</x>
+               <y>160</y>
+               <width>31</width>
+               <height>27</height>
+              </rect>
+             </property>
+             <property name="text">
+              <string>3</string>
              </property>
             </widget>
            </widget>
