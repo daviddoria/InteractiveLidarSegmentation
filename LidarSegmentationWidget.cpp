@@ -15,7 +15,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "MainWindow.h"
+#include "LidarSegmentationWidget.h"
 
 // Custom
 #include "Difference.h"
@@ -54,14 +54,30 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QTimer>
+#include <QtConcurrentRun>
 
 // STL
 #include <iostream>
 
-MainWindow::MainWindow(QWidget *parent)
+LidarSegmentationWidget::LidarSegmentationWidget(QWidget *parent)
+{
+  SharedConstructor();
+}
+
+LidarSegmentationWidget::LidarSegmentationWidget(const std::string& fileName)
+{
+  SharedConstructor();
+  OpenFile(fileName);
+}
+
+void LidarSegmentationWidget::SharedConstructor()
 {
   // Setup the GUI and connect all of the signals and slots
   setupUi(this);
+
+  this->ProgressDialog = new QProgressDialog();
+  connect(&this->FutureWatcher, SIGNAL(finished()), this, SLOT(slot_SegmentationComplete()));
+  connect(&this->FutureWatcher, SIGNAL(finished()), this->ProgressDialog , SLOT(cancel()));
   
   // Global settings
   this->Flipped = false;
@@ -71,8 +87,6 @@ MainWindow::MainWindow(QWidget *parent)
   connect( this->sldHistogramBins, SIGNAL( valueChanged(int) ), this, SLOT(sldHistogramBins_valueChanged()));
   connect( this->sldLambda, SIGNAL( valueChanged(int) ), this, SLOT(UpdateLambda()));
   connect( this->txtLambdaMax, SIGNAL( textEdited(QString) ), this, SLOT(UpdateLambda()));
-  connect(&SegmentationThread, SIGNAL(StartProgressSignal()), this, SLOT(StartProgressSlot()), Qt::QueuedConnection);
-  connect(&SegmentationThread, SIGNAL(StopProgressSignal()), this, SLOT(StopProgressSlot()), Qt::QueuedConnection);
 
   // Set the progress bar to marquee mode
   this->progressBar->setMinimum(0);
@@ -100,7 +114,7 @@ MainWindow::MainWindow(QWidget *parent)
   this->LeftRenderer->AddViewProp(this->OriginalImageSlice);
 
   this->LeftInteractorStyle = vtkSmartPointer<InteractorStyleScribble>::New();
-  this->LeftInteractorStyle->AddObserver(this->LeftInteractorStyle->ScribbleEvent, this, &MainWindow::ScribbleEventHandler);
+  this->LeftInteractorStyle->AddObserver(this->LeftInteractorStyle->ScribbleEvent, this, &LidarSegmentationWidget::ScribbleEventHandler);
   this->LeftInteractorStyle->SetCurrentRenderer(this->LeftRenderer);
   this->qvtkWidgetLeft->GetInteractor()->SetInteractorStyle(this->LeftInteractorStyle);
 
@@ -167,12 +181,12 @@ MainWindow::MainWindow(QWidget *parent)
   this->Image = ImageType::New();
 }
 
-void MainWindow::on_actionExit_triggered()
+void LidarSegmentationWidget::on_actionExit_triggered()
 {
   exit(0);
 }
 
-void MainWindow::SetCameraPosition1()
+void LidarSegmentationWidget::SetCameraPosition1()
 {
   double leftToRight[3] = {-1,0,0};
   double bottomToTop[3] = {0,1,0};
@@ -186,7 +200,7 @@ void MainWindow::SetCameraPosition1()
   this->RightRenderer->ResetCameraClippingRange();
 }
 
-void MainWindow::SetCameraPosition2()
+void LidarSegmentationWidget::SetCameraPosition2()
 {
   double leftToRight[3] = {-1,0,0};
   double bottomToTop[3] = {0,-1,0};
@@ -200,7 +214,7 @@ void MainWindow::SetCameraPosition2()
   this->RightRenderer->ResetCameraClippingRange();
 }
 
-void MainWindow::on_actionFlipImage_triggered()
+void LidarSegmentationWidget::on_actionFlipImage_triggered()
 {
   if(this->Flipped)
     {
@@ -216,7 +230,7 @@ void MainWindow::on_actionFlipImage_triggered()
   this->Refresh();
 }
 
-void MainWindow::on_actionSaveSegmentation_triggered()
+void LidarSegmentationWidget::on_actionSaveSegmentation_triggered()
 {
   // Ask the user for a filename to save the segment mask image to
 
@@ -245,20 +259,24 @@ void MainWindow::on_actionSaveSegmentation_triggered()
   */
 }
 
-void MainWindow::on_actionOpenImage_triggered()
+void LidarSegmentationWidget::on_actionOpenImage_triggered()
 {
   //std::cout << "actionOpenImage_triggered()" << std::endl;
-  OpenFile();
+  //std::cout << "Enter OpenFile()" << std::endl;
+
+  // Get a filename to open
+  QString filename = QFileDialog::getOpenFileName(this,
+     "Open Image", ".", "RGBD Files (*.mha)");
+
+  if(filename.isEmpty())
+    {
+    return;
+    }
+    
+  OpenFile(filename.toStdString());
 }
 
-
-void MainWindow::StartProgressSlot()
-{
-  // Connected to the StartProgressSignal of the ProgressThread member
-  this->progressBar->show();
-}
-
-void MainWindow::DisplaySegmentationResult()
+void LidarSegmentationWidget::DisplaySegmentationResult()
 {
   // Convert the segmentation mask to a binary VTK image
   vtkSmartPointer<vtkImageData> VTKSegmentMask = vtkSmartPointer<vtkImageData>::New();
@@ -293,7 +311,7 @@ void MainWindow::DisplaySegmentationResult()
   this->Refresh();
 }
 
-void MainWindow::ScribbleEventHandler(vtkObject* caller, long unsigned int eventId, void* callData)
+void LidarSegmentationWidget::ScribbleEventHandler(vtkObject* caller, long unsigned int eventId, void* callData)
 {
   //std::cout << "Handled scribble event." << std::endl;
   
@@ -315,7 +333,7 @@ void MainWindow::ScribbleEventHandler(vtkObject* caller, long unsigned int event
   UpdateSelections();
 }
 
-void MainWindow::UpdateSelections()
+void LidarSegmentationWidget::UpdateSelections()
 {
   // First, clear the image
   Helpers::CreateTransparentImage(this->SourceSinkImageData);
@@ -337,17 +355,13 @@ void MainWindow::UpdateSelections()
   this->Refresh();
 }
 
-// Display segmented image with transparent background pixels
-void MainWindow::StopProgressSlot()
+void LidarSegmentationWidget::slot_SegmentationComplete()
 {
-  // When the ProgressThread emits the StopProgressSignal, we need to display the result of the segmentation
-
+  // Display the result of the segmentation
   DisplaySegmentationResult();
-
-  this->progressBar->hide();
 }
 
-float MainWindow::ComputeLambda()
+float LidarSegmentationWidget::ComputeLambda()
 {
   // Compute lambda by multiplying the percentage set by the slider by the MaxLambda set in the text box
 
@@ -358,30 +372,30 @@ float MainWindow::ComputeLambda()
   return lambda;
 }
 
-void MainWindow::UpdateLambda()
+void LidarSegmentationWidget::UpdateLambda()
 {
   // Compute lambda and then set the label to this value so the user can see the current setting
   double lambda = ComputeLambda();
   this->lblLambda->setText(QString::number(lambda));
 }
 
-void MainWindow::sldHistogramBins_valueChanged()
+void LidarSegmentationWidget::sldHistogramBins_valueChanged()
 {
   this->GraphCut.SetNumberOfHistogramBins(sldHistogramBins->value());
   //this->lblHistogramBins->setText(QString::number(sldHistogramBins->value())); // This is taken care of by a signal/slot pair setup in QtDesigner
 }
 
-void MainWindow::on_radForeground_clicked()
+void LidarSegmentationWidget::on_radForeground_clicked()
 {
   this->LeftInteractorStyle->SetColorToGreen();
 }
 
-void MainWindow::on_radBackground_clicked()
+void LidarSegmentationWidget::on_radBackground_clicked()
 {
   this->LeftInteractorStyle->SetColorToRed();
 }
 
-void MainWindow::on_btnClearSelections_clicked()
+void LidarSegmentationWidget::on_btnClearSelections_clicked()
 {
   //this->LeftInteractorStyle->ClearSelections();
   this->Sources.clear();
@@ -389,21 +403,21 @@ void MainWindow::on_btnClearSelections_clicked()
   UpdateSelections();
 }
 
-void MainWindow::on_btnClearForeground_clicked()
+void LidarSegmentationWidget::on_btnClearForeground_clicked()
 {
   //this->LeftInteractorStyle->ClearForegroundSelections();
   this->Sources.clear();
   UpdateSelections();
 }
 
-void MainWindow::on_btnClearBackground_clicked()
+void LidarSegmentationWidget::on_btnClearBackground_clicked()
 {
   //this->LeftInteractorStyle->ClearBackgroundSelections();
   this->Sinks.clear();
   UpdateSelections();
 }
 
-void MainWindow::on_actionSaveSelectionsAsImage_triggered()
+void LidarSegmentationWidget::on_actionSaveSelectionsAsImage_triggered()
 {
   QString filename = QFileDialog::getSaveFileName(this,
      "Save Image", ".", "PNG Files (*.png)");
@@ -444,9 +458,7 @@ void MainWindow::on_actionSaveSelectionsAsImage_triggered()
   writer->Update();
 }
 
-
-
-void MainWindow::on_actionSaveSelectionsAsText_triggered()
+void LidarSegmentationWidget::on_actionSaveSelectionsAsText_triggered()
 {
   QString filename = QFileDialog::getSaveFileName(this,
      "Save Selections", ".", "TXT Files (*.txt)");
@@ -470,7 +482,7 @@ void MainWindow::on_actionSaveSelectionsAsText_triggered()
   fout.close();
 }
 
-void MainWindow::on_actionLoadForegroundSelectionsFromImage_triggered()
+void LidarSegmentationWidget::on_actionLoadForegroundSelectionsFromImage_triggered()
 {
   QString filename = QFileDialog::getOpenFileName(this,
      "Open Image", ".", "PNG Files (*.png)");
@@ -492,12 +504,12 @@ void MainWindow::on_actionLoadForegroundSelectionsFromImage_triggered()
   UpdateSelections();
 }
 
-void MainWindow::on_btnGenerateNeighborSinks_clicked()
+void LidarSegmentationWidget::on_btnGenerateNeighborSinks_clicked()
 {
   GenerateNeighborSinks();
 }
 
-void MainWindow::on_btnErodeSources_clicked()
+void LidarSegmentationWidget::on_btnErodeSources_clicked()
 {
   MaskImageType::Pointer sourcesImage = MaskImageType::New();
   sourcesImage->SetRegions(this->ImageRegion);
@@ -522,7 +534,7 @@ void MainWindow::on_btnErodeSources_clicked()
   UpdateSelections();
 }
 
-void MainWindow::GenerateNeighborSinks()
+void LidarSegmentationWidget::GenerateNeighborSinks()
 {
   MaskImageType::Pointer sourcesImage = MaskImageType::New();
   sourcesImage->SetRegions(this->ImageRegion);
@@ -717,7 +729,7 @@ void MainWindow::GenerateNeighborSinks()
   UpdateSelections();
 }
 
-void MainWindow::on_actionLoadSelectionsFromImage_triggered()
+void LidarSegmentationWidget::on_actionLoadSelectionsFromImage_triggered()
 {
   QString filename = QFileDialog::getOpenFileName(this,
      "Open Image", ".", "PNG Files (*.png)");
@@ -762,7 +774,7 @@ void MainWindow::on_actionLoadSelectionsFromImage_triggered()
 }
 
 
-void MainWindow::on_actionLoadSelectionsFromText_triggered()
+void LidarSegmentationWidget::on_actionLoadSelectionsFromText_triggered()
 {
   QString filename = QFileDialog::getOpenFileName(this,
      "Open Image", ".", "PNG Files (*.png)");
@@ -805,7 +817,7 @@ void MainWindow::on_actionLoadSelectionsFromText_triggered()
 }
 
 
-void MainWindow::on_btnCut_clicked()
+void LidarSegmentationWidget::on_btnCut_clicked()
 {
   this->GraphCut.Debug = this->chkDebug->isChecked();
   //this->GraphCut.SecondStep = this->chkSecondStep->isChecked();
@@ -865,8 +877,13 @@ void MainWindow::on_btnCut_clicked()
   //this->GraphCut.SetSinks(this->LeftInteractorStyle->GetBackgroundSelection());
 
   // Setup and start the actual cut computation in a different thread
-  this->SegmentationThread.GraphCut = &(this->GraphCut);
-  SegmentationThread.start();
+  QFuture<void> future = QtConcurrent::run(this->GraphCut, &ImageGraphCut::PerformSegmentation);
+  this->FutureWatcher.setFuture(future);
+
+  this->ProgressDialog->setMinimum(0);
+  this->ProgressDialog->setMaximum(0);
+  this->ProgressDialog->setWindowModality(Qt::WindowModal);
+  this->ProgressDialog->exec();
 
 }
 
@@ -912,21 +929,10 @@ void InnerWidget::actionSave_Segmentation_triggered()
 }
 #endif
 
-void MainWindow::OpenFile()
+void LidarSegmentationWidget::OpenFile(const std::string& fileName)
 {
-  //std::cout << "Enter OpenFile()" << std::endl;
-  
-  // Get a filename to open
-  QString filename = QFileDialog::getOpenFileName(this,
-     "Open Image", ".", "RGBD Files (*.mha)");
-
-  if(filename.isEmpty())
-    {
-    return;
-    }
-
   // Store the path so that temp files can be written to the same path as the input image
-  QFileInfo fileInfo(filename);
+  QFileInfo fileInfo(fileName.c_str());
   std::string workingDirectory = fileInfo.absoluteDir().absolutePath().toStdString() + "/";
   std::cout << "Working directory set to: " << workingDirectory << std::endl;
   QDir::setCurrent(QString(workingDirectory.c_str()));
@@ -934,7 +940,7 @@ void MainWindow::OpenFile()
   // Read file
   itk::ImageFileReader<ImageType>::Pointer reader = itk::ImageFileReader<ImageType>::New();
 
-  reader->SetFileName(filename.toStdString());
+  reader->SetFileName(fileName);
   reader->Update();
 
   Helpers::DeepCopyVectorImage<ImageType>(reader->GetOutput(), this->Image);
@@ -979,7 +985,7 @@ void MainWindow::OpenFile()
   this->Refresh();
 }
 
-void MainWindow::Refresh()
+void LidarSegmentationWidget::Refresh()
 {
   std::cout << "Refresh()" << std::endl;
   //this->SourceSinkImageSliceMapper->Render();

@@ -22,27 +22,35 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * mode during long computations.
 */
 
-#ifndef MAINWINDOW_H
-#define MAINWINDOW_H
+#ifndef LidarSegmentationWidget_H
+#define LidarSegmentationWidget_H
+
+// GUI
+#include "ui_LidarSegmentationWidget.h"
 
 // Qt
-#include "ui_MainWindow.h"
+#include <QFutureWatcher>
+#include <QProgressDialog>
+
+// VTK
+#include <vtkSmartPointer.h>
 
 // Custom
-#include "ProgressThread.h"
 class InteractorStyleScribble;
 class InteractorStyleImageNoLevel;
+#include "ImageGraphCut.h"
 
 // Forward declarations
 class vtkImageSlice;
 class vtkImageSliceMapper;
 
-class MainWindow : public QMainWindow, private Ui::MainWindow
+class LidarSegmentationWidget : public QMainWindow, private Ui::LidarSegmentationWidget
 {
 Q_OBJECT
 public:
-  MainWindow(QWidget *parent = 0);
-
+  LidarSegmentationWidget(QWidget *parent = 0);
+  LidarSegmentationWidget(const std::string& fileName);
+  
 public slots:
   // Menu items
   void on_actionOpenImage_triggered();
@@ -67,28 +75,26 @@ public slots:
   void on_radBackground_clicked();
   void sldHistogramBins_valueChanged();
   
-  // Setting lambda must be handled specially because we need to multiply the percentage set by the slider by the MaxLambda set in the text box
+  /** Setting lambda must be handled specially because we need to multiply the percentage set by the slider by the MaxLambda set in the text box */
   void UpdateLambda();
 
-  // These slots handle running the progress bar while the computations are done in a separate thread.
-  void StartProgressSlot();
-  void StopProgressSlot();
+  /** Perform an action when the segmentation has finished. */
+  void slot_SegmentationComplete();
 
-  // Use a QFileDialog to get a filename, then open the specified file as a greyscale or color image, depending on which type the user has specified through the file menu.
-  void OpenFile();
+  /** Open the specified file as a greyscale or color image, depending on which type the user has specified through the file menu. */
+  void OpenFile(const std::string& fileName);
   
   void UpdateSelections();
   
-protected:
+private:
+  /** A constructor that can be used by all other constructors. */
+  void SharedConstructor();
 
   void GenerateNeighborSinks();
   
   void DisplaySegmentationResult();
-  
-  // A class to do the main computations in a separate thread so we can display a marquee progress bar.
-  ProgressThread<ImageType> SegmentationThread;
 
-  // Compute lambda by multiplying the percentage set by the slider by the MaxLambda set in the text box.
+  /** Compute lambda by multiplying the percentage set by the slider by the MaxLambda set in the text box. */
   float ComputeLambda();
 
   // Left pane
@@ -138,6 +144,9 @@ protected:
   ImageType::Pointer Image;
   
   bool Debug;
+
+  QFutureWatcher<void> FutureWatcher;
+  QProgressDialog* ProgressDialog;
 };
 
 #endif

@@ -17,16 +17,30 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Instantiate and display the GUI
 
+// Qt
 #include <QApplication>
 
-#include "MainWindow.h"
+// STL
+#include <iostream>
+
+#include "LidarSegmentationWidget.h"
 
 int main(int argc, char** argv)
 {
   QApplication app(argc, argv);
 
-  MainWindow form;
-  form.show();
+  LidarSegmentationWidget* lidarSegmentationWidget = NULL;
+  if(argc == 1)
+  {
+    lidarSegmentationWidget = new LidarSegmentationWidget;
+  }
+  else if(argc == 2)
+  {
+    std::string fileName = argv[1];
+    std::cout << "filename: " << fileName << std::endl;
+    lidarSegmentationWidget = new LidarSegmentationWidget(fileName);
+  }
 
+  lidarSegmentationWidget->show();
   return app.exec();
 }

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>MainWindow</class>
- <widget class="QMainWindow" name="MainWindow">
+ <class>LidarSegmentationWidget</class>
+ <widget class="QMainWindow" name="LidarSegmentationWidget">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -38,10 +38,10 @@
        </widget>
       </item>
       <item row="1" column="0">
-       <widget class="QVTKWidget" name="qvtkWidgetLeft" native="true"/>
+       <widget class="QVTKWidget" name="qvtkWidgetLeft"/>
       </item>
       <item row="1" column="1">
-       <widget class="QVTKWidget" name="qvtkWidgetRight" native="true"/>
+       <widget class="QVTKWidget" name="qvtkWidgetRight"/>
       </item>
       <item row="2" column="1">
        <layout class="QHBoxLayout" name="horizontalLayout">
@@ -563,7 +563,7 @@
      <x>0</x>
      <y>0</y>
      <width>1232</width>
-     <height>25</height>
+     <height>28</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">

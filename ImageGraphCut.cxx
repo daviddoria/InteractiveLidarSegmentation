@@ -576,20 +576,19 @@ void ImageGraphCut::CreateTWeights()
       sourceHistogramValues.push_back(normalizedSourceHistogramValue);
       
       //float sinkWeight = -this->Lambda*log(normalizedSinkHistogramValue);
-      float sinkWeight = ComputeTEdgeWeight(Helpers::NegativeLog(normalizedSinkHistogramValue));
+      // NOTE! The sink weight t-link is set as a function of the FOREGROUND probability.
+      float sinkWeight = ComputeTEdgeWeight(Helpers::NegativeLog(normalizedSourceHistogramValue));
       sinkTWeights.push_back(sinkWeight);
       
       //float sourceWeight = -this->Lambda*log(normalizedSourceHistogramValue);
-      float sourceWeight = ComputeTEdgeWeight(Helpers::NegativeLog(normalizedSourceHistogramValue));
+      // NOTE! The source weight t-link is set as a function of the BACKGROUND probability.
+      float sourceWeight = ComputeTEdgeWeight(Helpers::NegativeLog(normalizedSinkHistogramValue));
       sourceTWeights.push_back(sourceWeight);
       
       // Add the edge to the graph and set its weight
       // See the table on p108 of "Interactive Graph Cuts for Optimal Boundary & Region Segmentation of Objects in N-D Images". 
-      // The source t-link is set to the background probability, and the sink t-link is set to the foreground probability.
-      // That is why the below call is reversed (sink, source) instead of the normal (source, sink). You can think of this as
-      // assigning a "penalty" for cutting the edge. I.e. if the pixel is on the object, there should be no penalty (0 weight) for assigning
-      // it to the foreground.
-      this->Graph->add_tweights(nodeIterator.Get(), sinkWeight, sourceWeight); // Normal call is (node_id, source, sink), see note above.
+      
+      this->Graph->add_tweights(nodeIterator.Get(), sourceWeight, sinkWeight); // (node_id, source, sink)
       
       if(this->Debug)
 	{
@@ -656,7 +655,7 @@ void ImageGraphCut::SetHardSinks(const std::vector<itk::Index<2> >& pixels)
   // Set very high sink weights for the pixels which were selected as background by the user
   
   // See the table on p108 of "Interactive Graph Cuts for Optimal Boundary & Region Segmentation of Objects in N-D Images". 
-  // We want to set the sink link high and the source link to zero
+  // We want to set the sink link high and the source link to zero. This means it is hard to cut the sink link, which is what we want.
   
   float highValue = std::numeric_limits<float>::max();
   //float highValue = 2.;
