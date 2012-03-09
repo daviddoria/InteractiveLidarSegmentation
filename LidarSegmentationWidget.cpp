@@ -314,10 +314,15 @@ void LidarSegmentationWidget::ScribbleEventHandler(vtkObject* caller, long unsig
 {
   //std::cout << "Handled scribble event." << std::endl;
 
-  std::vector<itk::Index<2> > selection = this->LeftInteractorStyle->GetSelection();
-    
-//   std::vector<itk::Index<2> > thinSelection = this->LeftInteractorStyle->GetSelection();
-//   std::vector<itk::Index<2> > selection = Helpers::DilatePixelList(thinSelection, this->Image->GetLargestPossibleRegion(), 2);
+  // Only mark the pixels on the path as foreground pixels
+  //std::vector<itk::Index<2> > selection = this->LeftInteractorStyle->GetSelection();
+
+  // Dilate the path and mark the path and the dilated pixel of the path as foreground
+  unsigned int dilateRadius = 2;
+  std::vector<itk::Index<2> > thinSelection = this->LeftInteractorStyle->GetSelection();
+  std::vector<itk::Index<2> > selection = Helpers::DilatePixelList(thinSelection,
+                                                                   this->Image->GetLargestPossibleRegion(),
+                                                                   dilateRadius);
   
   if(this->radForeground->isChecked())
     {

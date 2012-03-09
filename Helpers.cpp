@@ -11,6 +11,9 @@
 // VTK
 #include <vtkPolyData.h>
 
+// STL
+#include <iostream>
+
 namespace Helpers
 {
 
@@ -341,7 +344,7 @@ std::vector<itk::Index<2> > PolyDataToPixelList(vtkPolyData* const polydata)
   // The points of the polydata are floating point values, we must convert them to pixel indices.
   
   //std::cout << "Enter PolyDataToPixelList()" << std::endl;
-  //std::cout << "There are " << polydata->GetNumberOfPoints() << " points." << std::endl;
+  std::cout << "There are " << polydata->GetNumberOfPoints() << " points." << std::endl;
   
   // Convert vtkPoints to indices
   //std::cout << "Converting vtkPoints to indices..." << std::endl;
@@ -351,10 +354,20 @@ std::vector<itk::Index<2> > PolyDataToPixelList(vtkPolyData* const polydata)
     itk::Index<2> index;
     double p[3];
     polydata->GetPoint(pointId, p);
-    std::cout << "point " << pointId << " : " << p[0] << " " << p[1] << " " << p[2] << std::endl;
+    // std::cout << "point " << pointId << " : " << p[0] << " " << p[1] << " " << p[2] << std::endl;
     index[0] = round(p[0]);
     index[1] = round(p[1]);
-    linePoints.push_back(index);
+    if(linePoints.size() == 0)
+      {
+      linePoints.push_back(index);
+      continue;
+      }
+
+    // Don't duplicate indices of points acquired in a row that round to the same pixel.
+    if(index != linePoints[linePoints.size() - 1])
+      {
+      linePoints.push_back(index);
+      }
     }
 
   if(linePoints.size() < 2)
@@ -393,8 +406,10 @@ std::vector<itk::Index<2> > PolyDataToPixelList(vtkPolyData* const polydata)
   return allIndices;
 }
 
-std::vector<itk::Index<2> > DilatePixelList(const std::vector<itk::Index<2> >& pixelList, const itk::ImageRegion<2>& region, const unsigned int radius)
+std::vector<itk::Index<2> > DilatePixelList(const std::vector<itk::Index<2> >& pixelList,
+                                            const itk::ImageRegion<2>& region, const unsigned int radius)
 {
+  //std::cout << "DilatePixelList: input has " << pixelList.size() << " pixels." << std::endl;
   // Construct an image of the pixels in the list
   typedef itk::Image<unsigned char, 2> ImageType;
   ImageType::Pointer image = ImageType::New();
@@ -406,8 +421,11 @@ std::vector<itk::Index<2> > DilatePixelList(const std::vector<itk::Index<2> >& p
   
   for(PixelVectorType::const_iterator iter = pixelList.begin(); iter != pixelList.end(); ++iter)
   {
-    image->SetPixel(*iter, 1);
+    // Note, this must be 255, not just any non-zero number, for BinaryDilateImageFilter to work properly.
+    image->SetPixel(*iter, 255); 
   }
+
+  //WriteImage(image.GetPointer(), "beforeDilation.png");
 
   // Dilate the image
   typedef itk::BinaryBallStructuringElement<ImageType::PixelType,2> StructuringElementType;
@@ -422,9 +440,12 @@ std::vector<itk::Index<2> > DilatePixelList(const std::vector<itk::Index<2> >& p
   dilateFilter->SetKernel(structuringElement);
   dilateFilter->Update();
 
+  //WriteImage(dilateFilter->GetOutput(), "afterDilation.png");
+  
   PixelVectorType dilatedPixelList;
   
-  itk::ImageRegionConstIterator<ImageType> imageIterator(dilateFilter->GetOutput(), dilateFilter->GetOutput()->GetLargestPossibleRegion());
+  itk::ImageRegionConstIteratorWithIndex<ImageType> imageIterator(dilateFilter->GetOutput(),
+                                                         dilateFilter->GetOutput()->GetLargestPossibleRegion());
   while(!imageIterator.IsAtEnd())
     {
     if(imageIterator.Get())
@@ -434,6 +455,7 @@ std::vector<itk::Index<2> > DilatePixelList(const std::vector<itk::Index<2> >& p
     ++imageIterator;
     }
 
+  //std::cout << "DilatePixelList: output has " << dilatedPixelList.size() << " pixels." << std::endl;
   return dilatedPixelList;
 }
 
