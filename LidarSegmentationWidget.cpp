@@ -42,6 +42,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // VTK
 #include <vtkCamera.h>
 #include <vtkImageData.h>
+#include <vtkImageProperty.h>
 #include <vtkImageSlice.h>
 #include <vtkImageSliceMapper.h>
 #include <vtkPolyData.h>
@@ -98,6 +99,7 @@ void LidarSegmentationWidget::SharedConstructor()
   this->OriginalImageSliceMapper = vtkSmartPointer<vtkImageSliceMapper>::New();
   this->OriginalImageSliceMapper->SetInputConnection(this->OriginalImageData->GetProducerPort());
   this->OriginalImageSlice = vtkSmartPointer<vtkImageSlice>::New();
+  this->OriginalImageSlice->GetProperty()->SetInterpolationTypeToNearest(); // Make the pixels sharp instead of blurry when zoomed
   this->OriginalImageSlice->SetMapper(this->OriginalImageSliceMapper);
 
   this->LeftRenderer = vtkSmartPointer<vtkRenderer>::New();
@@ -139,6 +141,7 @@ void LidarSegmentationWidget::SharedConstructor()
   this->LeftSourceSinkImageSliceMapper->SetInputConnection(this->SourceSinkImageData->GetProducerPort());
   
   this->LeftSourceSinkImageSlice = vtkSmartPointer<vtkImageSlice>::New();
+  this->LeftSourceSinkImageSlice->GetProperty()->SetInterpolationTypeToNearest(); // Make the pixels sharp instead of blurry when zoomed
   this->LeftSourceSinkImageSlice->SetMapper(this->LeftSourceSinkImageSliceMapper);
   
   this->LeftRenderer->AddViewProp(this->LeftSourceSinkImageSlice);
@@ -147,6 +150,7 @@ void LidarSegmentationWidget::SharedConstructor()
   this->RightSourceSinkImageSliceMapper->SetInputConnection(this->SourceSinkImageData->GetProducerPort());
   
   this->RightSourceSinkImageSlice = vtkSmartPointer<vtkImageSlice>::New();
+  this->RightSourceSinkImageSlice->GetProperty()->SetInterpolationTypeToNearest(); // Make the pixels sharp instead of blurry when zoomed
   this->RightSourceSinkImageSlice->SetMapper(this->RightSourceSinkImageSliceMapper);
 
   this->RightRenderer->AddViewProp(this->RightSourceSinkImageSlice);
@@ -309,8 +313,12 @@ void LidarSegmentationWidget::DisplaySegmentationResult()
 void LidarSegmentationWidget::ScribbleEventHandler(vtkObject* caller, long unsigned int eventId, void* callData)
 {
   //std::cout << "Handled scribble event." << std::endl;
-  
+
   std::vector<itk::Index<2> > selection = this->LeftInteractorStyle->GetSelection();
+    
+//   std::vector<itk::Index<2> > thinSelection = this->LeftInteractorStyle->GetSelection();
+//   std::vector<itk::Index<2> > selection = Helpers::DilatePixelList(thinSelection, this->Image->GetLargestPossibleRegion(), 2);
+  
   if(this->radForeground->isChecked())
     {
     this->Sources.insert(this->Sources.end(), selection.begin(), selection.end());
@@ -321,8 +329,7 @@ void LidarSegmentationWidget::ScribbleEventHandler(vtkObject* caller, long unsig
     }
   else
     {
-    std::cerr << "Something is wrong - either Foreground or Background selection mode must be selected." << std::endl;
-    exit(-1);
+    throw std::runtime_error("Something is wrong - either Foreground or Background selection mode must be selected.");
     }
     
   UpdateSelections();

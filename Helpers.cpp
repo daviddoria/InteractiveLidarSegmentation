@@ -1,6 +1,8 @@
 #include "Helpers.h"
 
 // ITK
+#include "itkBinaryBallStructuringElement.h"
+#include "itkBinaryDilateImageFilter.h"
 #include "itkBresenhamLine.h"
 #include "itkImageRegionIterator.h"
 #include "itkRescaleIntensityImageFilter.h"
@@ -12,7 +14,7 @@
 namespace Helpers
 {
 
-float NegativeLog(float value)
+float NegativeLog(const float value)
 {
   return -1. * log(value);
 }
@@ -336,17 +338,20 @@ void InvertBinaryImage(const UnsignedCharScalarImageType* const image, UnsignedC
 
 std::vector<itk::Index<2> > PolyDataToPixelList(vtkPolyData* const polydata)
 {
+  // The points of the polydata are floating point values, we must convert them to pixel indices.
+  
   //std::cout << "Enter PolyDataToPixelList()" << std::endl;
   //std::cout << "There are " << polydata->GetNumberOfPoints() << " points." << std::endl;
   
   // Convert vtkPoints to indices
   //std::cout << "Converting vtkPoints to indices..." << std::endl;
   std::vector<itk::Index<2> > linePoints;
-  for(vtkIdType i = 0; i < polydata->GetNumberOfPoints(); i++)
+  for(vtkIdType pointId = 0; pointId < polydata->GetNumberOfPoints(); ++pointId)
     {
     itk::Index<2> index;
     double p[3];
-    polydata->GetPoint(i,p);
+    polydata->GetPoint(pointId, p);
+    std::cout << "point " << pointId << " : " << p[0] << " " << p[1] << " " << p[2] << std::endl;
     index[0] = round(p[0]);
     index[1] = round(p[1]);
     linePoints.push_back(index);
@@ -369,7 +374,7 @@ std::vector<itk::Index<2> > PolyDataToPixelList(vtkPolyData* const polydata)
 
     if(index0 == index1)
       {
-      std::cout << "Can't draw a line between the same pixels!" << std::endl;
+      std::cout << "Can't draw a line between the same pixels (" << index0 << " and " << index1 << "!" << std::endl;
       continue;
       }
 
@@ -386,6 +391,50 @@ std::vector<itk::Index<2> > PolyDataToPixelList(vtkPolyData* const polydata)
 
   //std::cout << "Exit PolyDataToPixelList()" << std::endl;
   return allIndices;
+}
+
+std::vector<itk::Index<2> > DilatePixelList(const std::vector<itk::Index<2> >& pixelList, const itk::ImageRegion<2>& region, const unsigned int radius)
+{
+  // Construct an image of the pixels in the list
+  typedef itk::Image<unsigned char, 2> ImageType;
+  ImageType::Pointer image = ImageType::New();
+  image->SetRegions(region);
+  image->Allocate();
+  image->FillBuffer(0);
+
+  typedef std::vector<itk::Index<2> > PixelVectorType;
+  
+  for(PixelVectorType::const_iterator iter = pixelList.begin(); iter != pixelList.end(); ++iter)
+  {
+    image->SetPixel(*iter, 1);
+  }
+
+  // Dilate the image
+  typedef itk::BinaryBallStructuringElement<ImageType::PixelType,2> StructuringElementType;
+  StructuringElementType structuringElement;
+  structuringElement.SetRadius(radius);
+  structuringElement.CreateStructuringElement();
+
+  typedef itk::BinaryDilateImageFilter<ImageType, ImageType, StructuringElementType> BinaryDilateImageFilterType;
+
+  BinaryDilateImageFilterType::Pointer dilateFilter = BinaryDilateImageFilterType::New();
+  dilateFilter->SetInput(image);
+  dilateFilter->SetKernel(structuringElement);
+  dilateFilter->Update();
+
+  PixelVectorType dilatedPixelList;
+  
+  itk::ImageRegionConstIterator<ImageType> imageIterator(dilateFilter->GetOutput(), dilateFilter->GetOutput()->GetLargestPossibleRegion());
+  while(!imageIterator.IsAtEnd())
+    {
+    if(imageIterator.Get())
+      {
+      dilatedPixelList.push_back(imageIterator.GetIndex());
+      }
+    ++imageIterator;
+    }
+
+  return dilatedPixelList;
 }
 
 void CreateTransparentImage(vtkImageData* const VTKImage)

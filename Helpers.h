@@ -51,6 +51,8 @@ void ITKImagetoVTKMagnitudeImage(const ImageType* const image, vtkImageData* con
 
 void ITKScalarImageToVTKImage(const MaskImageType* const image, vtkImageData* const outputImage);
 
+std::vector<itk::Index<2> > DilatePixelList(const std::vector<itk::Index<2> >& pixelList, const itk::ImageRegion<2>& region, const unsigned int radius);
+
 
 std::vector<itk::Index<2> > PolyDataToPixelList(vtkPolyData* const polydata);
 
