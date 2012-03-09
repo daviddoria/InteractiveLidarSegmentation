@@ -17,10 +17,10 @@ float NegativeLog(float value)
   return -1. * log(value);
 }
 
-std::vector<itk::Index<2> > GetNonZeroPixels(MaskImageType::Pointer image)
+std::vector<itk::Index<2> > GetNonZeroPixels(const MaskImageType* const image)
 {
   std::vector<itk::Index<2> > pixels;
-  itk::ImageRegionIterator<MaskImageType> imageIterator(image, image->GetLargestPossibleRegion());
+  itk::ImageRegionConstIterator<MaskImageType> imageIterator(image, image->GetLargestPossibleRegion());
 
   while(!imageIterator.IsAtEnd())
     {
@@ -33,13 +33,13 @@ std::vector<itk::Index<2> > GetNonZeroPixels(MaskImageType::Pointer image)
   return pixels;
 }
 
-unsigned int CountNonZeroPixels(MaskImageType::Pointer image)
+unsigned int CountNonZeroPixels(const MaskImageType* const image)
 {
   std::vector<itk::Index<2> > pixels = GetNonZeroPixels(image);
   return pixels.size();
 }
       
-bool FindClosestNonZeroPixel(MaskImageType::Pointer image, itk::Index<2> queryPixel, unsigned int radiusValue, itk::Index<2>& returnPixel)
+bool FindClosestNonZeroPixel(const MaskImageType* const image, const itk::Index<2>& queryPixel, const unsigned int radiusValue, itk::Index<2>& returnPixel)
 {
   itk::Index<2> zeroIndex;
   zeroIndex.Fill(0);
@@ -77,7 +77,7 @@ bool FindClosestNonZeroPixel(MaskImageType::Pointer image, itk::Index<2> queryPi
   return false;
 }
 
-itk::Index<2> FindClosestNonZeroPixel(MaskImageType::Pointer image, itk::Index<2> queryPixel)
+itk::Index<2> FindClosestNonZeroPixel(const MaskImageType* const image, const itk::Index<2>& queryPixel)
 {
   // Look in successively bigger neighborhoods
   for(unsigned int radiusValue = 1; radiusValue < std::max(image->GetLargestPossibleRegion().GetSize()[0], image->GetLargestPossibleRegion().GetSize()[1]); ++radiusValue)
@@ -102,7 +102,7 @@ bool IsNaN(const double a)
   return a != a;
 }
 
-void IndicesToBinaryImage(std::vector<itk::Index<2> > indices, UnsignedCharScalarImageType::Pointer image)
+void IndicesToBinaryImage(const std::vector<itk::Index<2> >& indices, UnsignedCharScalarImageType* const image)
 {
   // The Regions of the 'image' must be set before calling this function
   //std::cout << "Setting " << indices.size() << " points to non-zero." << std::endl;
@@ -117,7 +117,7 @@ void IndicesToBinaryImage(std::vector<itk::Index<2> > indices, UnsignedCharScala
     }
 }
 
-std::vector<itk::Index<2> > BinaryImageToIndices(UnsignedCharScalarImageType::Pointer image)
+std::vector<itk::Index<2> > BinaryImageToIndices(const UnsignedCharScalarImageType* const image)
 {
   std::vector<itk::Index<2> > indices;
   
@@ -134,7 +134,7 @@ std::vector<itk::Index<2> > BinaryImageToIndices(UnsignedCharScalarImageType::Po
   return indices;
 }
 
-void MaskImage(vtkSmartPointer<vtkImageData> VTKImage, vtkSmartPointer<vtkImageData> VTKSegmentMask, vtkSmartPointer<vtkImageData> VTKMaskedImage)
+void MaskImage(vtkImageData* const VTKImage, vtkImageData* const VTKSegmentMask, vtkImageData* const VTKMaskedImage)
 {
   int* dims = VTKImage->GetDimensions();
 
@@ -180,7 +180,7 @@ void MaskImage(vtkSmartPointer<vtkImageData> VTKImage, vtkSmartPointer<vtkImageD
 
 
 // Convert single channel ITK image to VTK image
-void ITKScalarImageToVTKImage(MaskImageType::Pointer image, vtkImageData* outputImage)
+void ITKScalarImageToVTKImage(const MaskImageType* const image, vtkImageData* const outputImage)
 {
   //std::cout << "ITKScalarImagetoVTKImage()" << std::endl;
   
@@ -208,7 +208,7 @@ void ITKScalarImageToVTKImage(MaskImageType::Pointer image, vtkImageData* output
 
 
 // Convert a vector ITK image to a VTK image for display
-void ITKImagetoVTKImage(ImageType::Pointer image, vtkImageData* outputImage)
+void ITKImagetoVTKImage(const ImageType* const image, vtkImageData* const outputImage)
 {
   //std::cout << "Enter ITKImagetoVTKImage()" << std::endl;
   if(image->GetNumberOfComponentsPerPixel() >= 3)
@@ -223,7 +223,7 @@ void ITKImagetoVTKImage(ImageType::Pointer image, vtkImageData* outputImage)
 }
 
 // Convert a vector ITK image to a VTK image for display
-void ITKImagetoVTKRGBImage(ImageType::Pointer image, vtkImageData* outputImage)
+void ITKImagetoVTKRGBImage(const ImageType* const image, vtkImageData* const outputImage)
 {
   // This function assumes an ND (with N>3) image has the first 3 channels as RGB and extra information in the remaining channels.
   
@@ -264,7 +264,7 @@ void ITKImagetoVTKRGBImage(ImageType::Pointer image, vtkImageData* outputImage)
 
 
 // Convert a vector ITK image to a VTK image for display
-void ITKImagetoVTKMagnitudeImage(ImageType::Pointer image, vtkImageData* outputImage)
+void ITKImagetoVTKMagnitudeImage(const ImageType* const image, vtkImageData* const outputImage)
 {
   //std::cout << "ITKImagetoVTKMagnitudeImage()" << std::endl;
   // Compute the magnitude of the ITK image
@@ -309,7 +309,7 @@ void ITKImagetoVTKMagnitudeImage(ImageType::Pointer image, vtkImageData* outputI
     }
 }
 
-void InvertBinaryImage(UnsignedCharScalarImageType::Pointer image, UnsignedCharScalarImageType::Pointer inverted)
+void InvertBinaryImage(const UnsignedCharScalarImageType* const image, UnsignedCharScalarImageType* const inverted)
 {
   // Setup inverted image
   inverted->SetRegions(image->GetLargestPossibleRegion());
@@ -334,7 +334,7 @@ void InvertBinaryImage(UnsignedCharScalarImageType::Pointer image, UnsignedCharS
 }
 
 
-std::vector<itk::Index<2> > PolyDataToPixelList(vtkPolyData* polydata)
+std::vector<itk::Index<2> > PolyDataToPixelList(vtkPolyData* const polydata)
 {
   //std::cout << "Enter PolyDataToPixelList()" << std::endl;
   //std::cout << "There are " << polydata->GetNumberOfPoints() << " points." << std::endl;
@@ -388,7 +388,7 @@ std::vector<itk::Index<2> > PolyDataToPixelList(vtkPolyData* polydata)
   return allIndices;
 }
 
-void CreateTransparentImage(vtkImageData* VTKImage)
+void CreateTransparentImage(vtkImageData* const VTKImage)
 {
   VTKImage->SetNumberOfScalarComponents(4);
   VTKImage->SetScalarTypeToUnsignedChar();
@@ -413,7 +413,7 @@ void CreateTransparentImage(vtkImageData* VTKImage)
     } // end y loop
 }
 
-void SetPixels(vtkImageData* VTKImage, std::vector<itk::Index<2> > pixels, unsigned char color[3])
+void SetPixels(vtkImageData* const VTKImage, const std::vector<itk::Index<2> >& pixels, const unsigned char color[3])
 {
   int* dims = VTKImage->GetDimensions();
   

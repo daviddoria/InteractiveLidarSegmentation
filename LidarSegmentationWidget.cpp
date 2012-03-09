@@ -88,11 +88,6 @@ void LidarSegmentationWidget::SharedConstructor()
   connect( this->sldLambda, SIGNAL( valueChanged(int) ), this, SLOT(UpdateLambda()));
   connect( this->txtLambdaMax, SIGNAL( textEdited(QString) ), this, SLOT(UpdateLambda()));
 
-  // Set the progress bar to marquee mode
-  this->progressBar->setMinimum(0);
-  this->progressBar->setMaximum(0);
-  this->progressBar->hide();
-
   // Setup backgrounds
   this->BackgroundColor[0] = 0;
   this->BackgroundColor[1] = 0;

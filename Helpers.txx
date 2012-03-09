@@ -13,7 +13,7 @@ namespace Helpers
   
 /** Copy the input to the output*/
 template<typename TImage>
-void DeepCopy(typename TImage::Pointer input, typename TImage::Pointer output)
+void DeepCopy(const TImage* const input, TImage* const output)
 {
   output->SetRegions(input->GetLargestPossibleRegion());
   output->Allocate();
@@ -30,7 +30,7 @@ void DeepCopy(typename TImage::Pointer input, typename TImage::Pointer output)
 }
 
 template<typename TImage>
-void DeepCopyVectorImage(typename TImage::Pointer input, typename TImage::Pointer output)
+void DeepCopyVectorImage(const TImage* const input, TImage* const output)
 {
   output->SetRegions(input->GetLargestPossibleRegion());
   output->SetNumberOfComponentsPerPixel(input->GetNumberOfComponentsPerPixel());
@@ -48,7 +48,7 @@ void DeepCopyVectorImage(typename TImage::Pointer input, typename TImage::Pointe
 }
 
 template<typename TImage>
-void WriteImage(typename TImage::Pointer image, const std::string& fileName)
+void WriteImage(const TImage* const image, const std::string& fileName)
 {
   typedef  itk::ImageFileWriter< TImage > WriterType;
   typename WriterType::Pointer writer = WriterType::New();
@@ -58,7 +58,7 @@ void WriteImage(typename TImage::Pointer image, const std::string& fileName)
 }
 
 template<typename T>
-void WriteVectorToFile(std::vector<T> &v, const std::string& filename)
+void WriteVectorToFile(const std::vector<T> &v, const std::string& filename)
 {
   std::ofstream fout(filename.c_str());
  
@@ -71,7 +71,7 @@ void WriteVectorToFile(std::vector<T> &v, const std::string& filename)
 }
 
 template<typename T>
-T VectorMedian(std::vector<T> &v)
+T VectorMedian(const std::vector<T> &v)
 {
   
   int n = v.size() / 2;
@@ -86,7 +86,7 @@ T VectorMedian(std::vector<T> &v)
 }
 
 template<typename T>
-T VectorAverage(std::vector<T> &v)
+T VectorAverage(const std::vector<T> &v)
 {
   T vecSum = std::accumulate(v.begin(), v.end(), 0);
   
@@ -127,7 +127,7 @@ void ITKImagetoVTKImage<RGBDIImageType>(RGBDIImageType::Pointer image, vtkImageD
 #endif
 
 template <typename TImage>
-void SetPixels(TImage* image, std::vector<itk::Index<2> > pixels, typename TImage::PixelType value)
+void SetPixels(TImage* const image, const std::vector<itk::Index<2> >& pixels, typename TImage::PixelType& value)
 {
   for(unsigned int i = 0; i < pixels.size(); ++i)
     {
