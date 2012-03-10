@@ -85,7 +85,7 @@ void LidarSegmentationWidget::SharedConstructor()
   this->Debug = true;
   
   // Qt connections
-  connect( this->sldHistogramBins, SIGNAL( valueChanged(int) ), this, SLOT(sldHistogramBins_valueChanged()));
+  // connect( this->sldHistogramBins, SIGNAL( valueChanged(int) ), this, SLOT(sldHistogramBins_valueChanged()));
   connect( this->sldLambda, SIGNAL( valueChanged(int) ), this, SLOT(UpdateLambda()));
   connect( this->txtLambdaMax, SIGNAL( textEdited(QString) ), this, SLOT(UpdateLambda()));
 
@@ -99,7 +99,8 @@ void LidarSegmentationWidget::SharedConstructor()
   this->OriginalImageSliceMapper = vtkSmartPointer<vtkImageSliceMapper>::New();
   this->OriginalImageSliceMapper->SetInputConnection(this->OriginalImageData->GetProducerPort());
   this->OriginalImageSlice = vtkSmartPointer<vtkImageSlice>::New();
-  this->OriginalImageSlice->GetProperty()->SetInterpolationTypeToNearest(); // Make the pixels sharp instead of blurry when zoomed
+  // Make the pixels sharp instead of blurry when zoomed
+  this->OriginalImageSlice->GetProperty()->SetInterpolationTypeToNearest(); 
   this->OriginalImageSlice->SetMapper(this->OriginalImageSliceMapper);
 
   this->LeftRenderer = vtkSmartPointer<vtkRenderer>::New();
@@ -141,7 +142,8 @@ void LidarSegmentationWidget::SharedConstructor()
   this->LeftSourceSinkImageSliceMapper->SetInputConnection(this->SourceSinkImageData->GetProducerPort());
   
   this->LeftSourceSinkImageSlice = vtkSmartPointer<vtkImageSlice>::New();
-  this->LeftSourceSinkImageSlice->GetProperty()->SetInterpolationTypeToNearest(); // Make the pixels sharp instead of blurry when zoomed
+  // Make the pixels sharp instead of blurry when zoomed
+  this->LeftSourceSinkImageSlice->GetProperty()->SetInterpolationTypeToNearest(); 
   this->LeftSourceSinkImageSlice->SetMapper(this->LeftSourceSinkImageSliceMapper);
   
   this->LeftRenderer->AddViewProp(this->LeftSourceSinkImageSlice);
@@ -150,7 +152,8 @@ void LidarSegmentationWidget::SharedConstructor()
   this->RightSourceSinkImageSliceMapper->SetInputConnection(this->SourceSinkImageData->GetProducerPort());
   
   this->RightSourceSinkImageSlice = vtkSmartPointer<vtkImageSlice>::New();
-  this->RightSourceSinkImageSlice->GetProperty()->SetInterpolationTypeToNearest(); // Make the pixels sharp instead of blurry when zoomed
+  // Make the pixels sharp instead of blurry when zoomed
+  this->RightSourceSinkImageSlice->GetProperty()->SetInterpolationTypeToNearest(); 
   this->RightSourceSinkImageSlice->SetMapper(this->RightSourceSinkImageSliceMapper);
 
   this->RightRenderer->AddViewProp(this->RightSourceSinkImageSlice);
@@ -283,7 +286,7 @@ void LidarSegmentationWidget::DisplaySegmentationResult()
 
   // Convert the image into a VTK image for display
   vtkSmartPointer<vtkImageData> VTKImage = vtkSmartPointer<vtkImageData>::New();
-  Helpers::ITKImagetoVTKImage(this->GraphCut.GetMaskedOutput(), VTKImage);
+  Helpers::ITKImageToVTKImage(this->GraphCut.GetMaskedOutput(), VTKImage);
 
   // Mask the VTK image with the segmentation result/mask
   vtkSmartPointer<vtkImageData> VTKMaskedImage = vtkSmartPointer<vtkImageData>::New();
@@ -386,7 +389,7 @@ void LidarSegmentationWidget::UpdateLambda()
   this->lblLambda->setText(QString::number(lambda));
 }
 
-void LidarSegmentationWidget::sldHistogramBins_valueChanged()
+void LidarSegmentationWidget::on_sldHistogramBins_valueChanged()
 {
   this->GraphCut.SetNumberOfHistogramBins(sldHistogramBins->value());
   //this->lblHistogramBins->setText(QString::number(sldHistogramBins->value())); // This is taken care of by a signal/slot pair setup in QtDesigner
@@ -950,8 +953,16 @@ void LidarSegmentationWidget::OpenFile(const std::string& fileName)
   reader->SetFileName(fileName);
   reader->Update();
 
-  Helpers::DeepCopyVectorImage<ImageType>(reader->GetOutput(), this->Image);
-  
+  if(reader->GetOutput()->GetNumberOfComponentsPerPixel() < 4)
+    {
+    std::cerr << "The input image has " << reader->GetOutput()->GetNumberOfComponentsPerPixel()
+              << " components, but (at least) 4 are required." << std::endl;
+    return;
+    }
+
+  Helpers::DeepCopy(reader->GetOutput(), this->Image.GetPointer());
+
+  // Store the region so we can access it without needing to care which image it comes from
   this->ImageRegion = reader->GetOutput()->GetLargestPossibleRegion();
 
   this->GraphCut.SetImage(reader->GetOutput());
@@ -963,32 +974,36 @@ void LidarSegmentationWidget::OpenFile(const std::string& fileName)
   this->Sinks.clear();
 
   UpdateSelections();
-  
+
   // Convert the ITK image to a VTK image and display it
-  Helpers::ITKImagetoVTKImage(reader->GetOutput(), this->OriginalImageData);
+  Helpers::ITKImageToVTKImage(reader->GetOutput(), this->OriginalImageData);
 
   this->OriginalImageSliceMapper->SetInputConnection(this->OriginalImageData->GetProducerPort());
   this->OriginalImageSlice->SetMapper(this->OriginalImageSliceMapper);
 
   //this->LeftRenderer->AddViewProp(this->OriginalImageSlice);
   this->LeftRenderer->ResetCamera();
-  
+
   // Setup the scribble canvas
   Helpers::SetImageSize(this->OriginalImageData, this->SourceSinkImageData);
   Helpers::CreateTransparentImage(this->SourceSinkImageData);
-  
+
   this->LeftSourceSinkImageSliceMapper->SetInputConnection(this->SourceSinkImageData->GetProducerPort());
   this->LeftSourceSinkImageSlice->SetMapper(this->LeftSourceSinkImageSliceMapper);
-  
+
   this->RightSourceSinkImageSliceMapper->SetInputConnection(this->SourceSinkImageData->GetProducerPort());
   this->RightSourceSinkImageSlice->SetMapper(this->RightSourceSinkImageSliceMapper);
-    
-  this->RightRenderer->AddViewProp(this->RightSourceSinkImageSlice); // If this is called, the image disappears in the *left* renderer???
+
+  // If this is called, the image disappears in the *left* renderer???
+  this->RightRenderer->AddViewProp(this->RightSourceSinkImageSlice); 
   this->RightRenderer->ResetCamera();
-    
-  this->LeftInteractorStyle->InitializeTracer(this->LeftSourceSinkImageSlice); // This also adds the ImageSlice to the renderers
-  //this->LeftRenderer->AddViewProp(this->LeftSourceSinkImageSlice); // This is done inside the InitializeTracer call
-  
+
+  // This also adds the ImageSlice to the renderers
+  this->LeftInteractorStyle->InitializeTracer(this->LeftSourceSinkImageSlice);
+
+  // This is done inside the InitializeTracer call
+  //this->LeftRenderer->AddViewProp(this->LeftSourceSinkImageSlice); 
+
   this->Refresh();
 }
 
@@ -1002,4 +1017,16 @@ void LidarSegmentationWidget::Refresh()
   this->qvtkWidgetLeft->GetRenderWindow()->Render();
   this->qvtkWidgetRight->GetInteractor()->Render();
   this->qvtkWidgetLeft->GetInteractor()->Render();
+}
+
+void LidarSegmentationWidget::on_action_View_DepthImage_triggered()
+{
+  Helpers::ITKImageChannelToVTKImage(this->Image.GetPointer(), 3, this->OriginalImageData);
+  Refresh();
+}
+
+void LidarSegmentationWidget::on_action_View_ColorImage_triggered()
+{
+  Helpers::ITKImageToVTKImage(this->Image.GetPointer(), this->OriginalImageData);
+  Refresh();
 }

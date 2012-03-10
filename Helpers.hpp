@@ -29,15 +29,18 @@ void DeepCopy(const TImage* const input, TImage* const output)
     }
 }
 
-template<typename TImage>
-void DeepCopyVectorImage(const TImage* const input, TImage* const output)
+template<typename TPixel>
+void DeepCopy(const itk::VectorImage<TPixel, 2>* const input,
+              itk::VectorImage<TPixel, 2>* const output)
 {
+  typedef itk::VectorImage<TPixel, 2> ImageType;
+  
   output->SetRegions(input->GetLargestPossibleRegion());
   output->SetNumberOfComponentsPerPixel(input->GetNumberOfComponentsPerPixel());
   output->Allocate();
 
-  itk::ImageRegionConstIterator<TImage> inputIterator(input, input->GetLargestPossibleRegion());
-  itk::ImageRegionIterator<TImage> outputIterator(output, output->GetLargestPossibleRegion());
+  itk::ImageRegionConstIterator<ImageType> inputIterator(input, input->GetLargestPossibleRegion());
+  itk::ImageRegionIterator<ImageType> outputIterator(output, output->GetLargestPossibleRegion());
 
   while(!inputIterator.IsAtEnd())
     {

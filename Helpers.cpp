@@ -7,6 +7,7 @@
 #include "itkImageRegionIterator.h"
 #include "itkRescaleIntensityImageFilter.h"
 #include "itkVectorMagnitudeImageFilter.h"
+#include "itkVectorIndexSelectionCastImageFilter.h"
 
 // VTK
 #include <vtkPolyData.h>
@@ -213,29 +214,31 @@ void ITKScalarImageToVTKImage(const MaskImageType* const image, vtkImageData* co
 
 
 // Convert a vector ITK image to a VTK image for display
-void ITKImagetoVTKImage(const ImageType* const image, vtkImageData* const outputImage)
+void ITKImageToVTKImage(const ImageType* const image, vtkImageData* const outputImage)
 {
   //std::cout << "Enter ITKImagetoVTKImage()" << std::endl;
   if(image->GetNumberOfComponentsPerPixel() >= 3)
     {
-    ITKImagetoVTKRGBImage(image, outputImage);
+    ITKImageToVTKRGBImage(image, outputImage);
     }
   else
     {
-    ITKImagetoVTKMagnitudeImage(image, outputImage);
+    ITKImageToVTKMagnitudeImage(image, outputImage);
     }
   //std::cout << "Exit ITKImagetoVTKImage()" << std::endl;
 }
 
 // Convert a vector ITK image to a VTK image for display
-void ITKImagetoVTKRGBImage(const ImageType* const image, vtkImageData* const outputImage)
+void ITKImageToVTKRGBImage(const ImageType* const image, vtkImageData* const outputImage)
 {
-  // This function assumes an ND (with N>3) image has the first 3 channels as RGB and extra information in the remaining channels.
+  // This function assumes an ND (with N>3) image has the first 3 channels as RGB and
+  // extra information in the remaining channels.
   
   //std::cout << "Enter ITKImagetoVTKRGBImage()" << std::endl;
   if(image->GetNumberOfComponentsPerPixel() < 3)
     {
-    std::cerr << "The input image has " << image->GetNumberOfComponentsPerPixel() << " components, but at least 3 are required." << std::endl;
+    std::cerr << "The input image has " << image->GetNumberOfComponentsPerPixel()
+              << " components, but at least 3 are required." << std::endl;
     return;
     }
 
@@ -269,7 +272,7 @@ void ITKImagetoVTKRGBImage(const ImageType* const image, vtkImageData* const out
 
 
 // Convert a vector ITK image to a VTK image for display
-void ITKImagetoVTKMagnitudeImage(const ImageType* const image, vtkImageData* const outputImage)
+void ITKImageToVTKMagnitudeImage(const ImageType* const image, vtkImageData* const outputImage)
 {
   //std::cout << "ITKImagetoVTKMagnitudeImage()" << std::endl;
   // Compute the magnitude of the ITK image
@@ -301,7 +304,61 @@ void ITKImagetoVTKMagnitudeImage(const ImageType* const image, vtkImageData* con
   outputImage->AllocateScalars();
 
   // Copy all of the scaled magnitudes to the output image
-  itk::ImageRegionConstIteratorWithIndex<UnsignedCharScalarImageType> imageIterator(rescaleFilter->GetOutput(), rescaleFilter->GetOutput()->GetLargestPossibleRegion());
+  itk::ImageRegionConstIteratorWithIndex<UnsignedCharScalarImageType>
+    imageIterator(rescaleFilter->GetOutput(), rescaleFilter->GetOutput()->GetLargestPossibleRegion());
+
+  imageIterator.GoToBegin();
+
+  while(!imageIterator.IsAtEnd())
+    {
+    unsigned char* pixel = static_cast<unsigned char*>(outputImage->GetScalarPointer(imageIterator.GetIndex()[0],
+                                                                                     imageIterator.GetIndex()[1],0));
+    pixel[0] = imageIterator.Get();
+
+    ++imageIterator;
+    }
+}
+
+void ITKImageChannelToVTKImage(const ImageType* const image, const unsigned int channel,
+                               vtkImageData* const outputImage)
+{
+  if(channel >= image->GetNumberOfComponentsPerPixel())
+  {
+    std::cerr << "Cannot extract channel " << channel << " of a "
+              << image->GetNumberOfComponentsPerPixel() << " channel image." << std::endl;
+    return;
+  }
+
+  typedef itk::Image<typename ImageType::InternalPixelType, 2> ScalarImageType;
+  typedef itk::VectorIndexSelectionCastImageFilter<ImageType, ScalarImageType> IndexSelectionType;
+  IndexSelectionType::Pointer indexSelectionFilter = IndexSelectionType::New();
+  indexSelectionFilter->SetIndex(channel);
+  indexSelectionFilter->SetInput(image);
+  indexSelectionFilter->Update();
+
+  // Rescale and cast for display
+  typedef itk::RescaleIntensityImageFilter<
+                  ScalarImageType, UnsignedCharScalarImageType > RescaleFilterType;
+
+  RescaleFilterType::Pointer rescaleFilter = RescaleFilterType::New();
+  rescaleFilter->SetOutputMinimum(0);
+  rescaleFilter->SetOutputMaximum(255);
+  rescaleFilter->SetInput(indexSelectionFilter->GetOutput());
+  rescaleFilter->Update();
+
+  // Setup and allocate the VTK image
+  outputImage->SetNumberOfScalarComponents(1);
+  outputImage->SetScalarTypeToUnsignedChar();
+  outputImage->SetDimensions(image->GetLargestPossibleRegion().GetSize()[0],
+                             image->GetLargestPossibleRegion().GetSize()[1],
+                             1);
+
+  outputImage->AllocateScalars();
+
+  // Copy all of the scaled magnitudes to the output image
+  itk::ImageRegionConstIteratorWithIndex<UnsignedCharScalarImageType>
+    imageIterator(rescaleFilter->GetOutput(), rescaleFilter->GetOutput()->GetLargestPossibleRegion());
+
   imageIterator.GoToBegin();
 
   while(!imageIterator.IsAtEnd())

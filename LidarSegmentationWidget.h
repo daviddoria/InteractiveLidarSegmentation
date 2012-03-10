@@ -63,6 +63,10 @@ public slots:
   void on_actionLoadSelectionsFromText_triggered();
   void on_actionLoadForegroundSelectionsFromImage_triggered();
 
+  // View menu
+  void on_action_View_DepthImage_triggered();
+  void on_action_View_ColorImage_triggered();
+  
   // Buttons, radio buttons, and sliders
   void on_btnGenerateNeighborSinks_clicked();
   void on_btnErodeSources_clicked();
@@ -73,15 +77,18 @@ public slots:
   void on_btnCut_clicked();
   void on_radForeground_clicked();
   void on_radBackground_clicked();
-  void sldHistogramBins_valueChanged();
+  void on_sldHistogramBins_valueChanged();
   
-  /** Setting lambda must be handled specially because we need to multiply the percentage set by the slider by the MaxLambda set in the text box */
+  /** Setting lambda must be handled specially because we need to multiply the percentage
+   *  set by the slider by the MaxLambda set in the text box */
   void UpdateLambda();
 
   /** Perform an action when the segmentation has finished. */
   void slot_SegmentationComplete();
 
-  /** Open the specified file as a greyscale or color image, depending on which type the user has specified through the file menu. */
+  /** Open the specified file as a greyscale or color image, depending on which type the user
+   * has specified through the file menu.
+   */
   void OpenFile(const std::string& fileName);
   
   void UpdateSelections();
@@ -111,8 +118,8 @@ private:
   vtkSmartPointer<vtkRenderer> RightRenderer;
   vtkSmartPointer<InteractorStyleImageNoLevel> RightInteractorStyle;
   
-  // Both panes
-  vtkSmartPointer<vtkImageData> SourceSinkImageData; // This data can be used by both the Left and Right SourceSinkImageSliceMapper
+  /** Both panes - This data can be used by both the Left and Right SourceSinkImageSliceMapper */
+  vtkSmartPointer<vtkImageData> SourceSinkImageData; 
   
   vtkSmartPointer<vtkImageSliceMapper> LeftSourceSinkImageSliceMapper;
   vtkSmartPointer<vtkImageSlice> LeftSourceSinkImageSlice;
@@ -120,16 +127,17 @@ private:
   vtkSmartPointer<vtkImageSliceMapper> RightSourceSinkImageSliceMapper;
   vtkSmartPointer<vtkImageSlice> RightSourceSinkImageSlice;
   
-  // Refresh both renderers and render windows
+  /** Refresh both renderers and render windows */
   void Refresh();
 
-  // The main segmentation class. This will be instantiated as a ImageGraphCut after the user selects whether to open a color or grayscale image.
+  /** The main segmentation class. This will be instantiated as a ImageGraphCut
+   *  after the user selects whether to open a color or grayscale image. */
   ImageGraphCut GraphCut;
 
-  // Allows the background color to be changed
+  /** Allows the background color to be changed */
   double BackgroundColor[3];
 
-  // We set this when the image is opeend. We sometimes need to know how big the image is.
+  /** We set this when the image is opeend. We sometimes need to know how big the image is. */
   itk::ImageRegion<2> ImageRegion;
   
   void ScribbleEventHandler(vtkObject* caller, long unsigned int eventId, void* callData);
@@ -145,6 +153,9 @@ private:
   
   bool Debug;
 
+  /** These members are to handle the progress bar during the segmentation.
+   *  They have to be members so we can setup the connections once during the constructor.
+   */
   QFutureWatcher<void> FutureWatcher;
   QProgressDialog* ProgressDialog;
 };
