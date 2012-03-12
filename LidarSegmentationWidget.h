@@ -57,15 +57,24 @@ public slots:
   void on_actionSaveSegmentation_triggered();
   void on_actionFlipImage_triggered();
   void on_actionExit_triggered();
-  void on_actionSaveSelectionsAsImage_triggered();
-  void on_actionSaveSelectionsAsText_triggered();
-  void on_actionLoadSelectionsFromImage_triggered();
-  void on_actionLoadSelectionsFromText_triggered();
-  void on_actionLoadForegroundSelectionsFromImage_triggered();
+
+  // Selections menu
+  void on_action_Selections_SaveSelectionsAsImage_triggered();
+  void on_action_Selections_SaveForegroundSelectionsAsImage_triggered();
+  void on_action_Selections_SaveBackgroundSelectionsAsImage_triggered();
+  void on_action_Selections_SaveSelectionsAsText_triggered();
+  void on_action_Selections_LoadSelectionsFromImage_triggered();
+  void on_action_Selections_LoadSelectionsFromText_triggered();
+  void on_action_Selections_LoadForegroundSelectionsFromImage_triggered();
+  void on_action_Selections_LoadBackgroundSelectionsFromImage_triggered();
 
   // View menu
   void on_action_View_DepthImage_triggered();
   void on_action_View_ColorImage_triggered();
+
+  // Export menu
+  void on_action_Export_InputScreenshot_triggered();
+  void on_action_Export_ResultScreenshot_triggered();
   
   // Buttons, radio buttons, and sliders
   void on_btnGenerateNeighborSinks_clicked();

@@ -45,10 +45,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <vtkImageProperty.h>
 #include <vtkImageSlice.h>
 #include <vtkImageSliceMapper.h>
+#include <vtkPNGWriter.h>
 #include <vtkPolyData.h>
 #include <vtkRenderer.h>
 #include <vtkRenderWindow.h>
 #include <vtkSmartPointer.h>
+#include <vtkWindowToImageFilter.h>
 
 // Qt
 #include <QFileDialog>
@@ -100,7 +102,7 @@ void LidarSegmentationWidget::SharedConstructor()
   this->OriginalImageSliceMapper->SetInputConnection(this->OriginalImageData->GetProducerPort());
   this->OriginalImageSlice = vtkSmartPointer<vtkImageSlice>::New();
   // Make the pixels sharp instead of blurry when zoomed
-  this->OriginalImageSlice->GetProperty()->SetInterpolationTypeToNearest(); 
+  this->OriginalImageSlice->GetProperty()->SetInterpolationTypeToNearest();
   this->OriginalImageSlice->SetMapper(this->OriginalImageSliceMapper);
 
   this->LeftRenderer = vtkSmartPointer<vtkRenderer>::New();
@@ -239,7 +241,10 @@ void LidarSegmentationWidget::on_actionSaveSegmentation_triggered()
   QString fileName = QFileDialog::getSaveFileName(this,
     "Save Segment Mask Image", ".", "PNG Files (*.png)");
 
-
+  if(fileName.isEmpty())
+  {
+    return;
+  }
   // Write the file (object is white)
   typedef  itk::ImageFileWriter< MaskImageType > WriterType;
   WriterType::Pointer writer = WriterType::New();
@@ -427,7 +432,7 @@ void LidarSegmentationWidget::on_btnClearBackground_clicked()
   UpdateSelections();
 }
 
-void LidarSegmentationWidget::on_actionSaveSelectionsAsImage_triggered()
+void LidarSegmentationWidget::on_action_Selections_SaveSelectionsAsImage_triggered()
 {
   QString filename = QFileDialog::getSaveFileName(this,
      "Save Image", ".", "PNG Files (*.png)");
@@ -468,7 +473,83 @@ void LidarSegmentationWidget::on_actionSaveSelectionsAsImage_triggered()
   writer->Update();
 }
 
-void LidarSegmentationWidget::on_actionSaveSelectionsAsText_triggered()
+
+void LidarSegmentationWidget::on_action_Selections_SaveForegroundSelectionsAsImage_triggered()
+{
+  QString filename = QFileDialog::getSaveFileName(this,
+     "Save Image", ".", "PNG Files (*.png)");
+
+  if(filename.isEmpty())
+    {
+    return;
+    }
+
+  RGBImageType::Pointer selectionsImage = RGBImageType::New();
+
+  selectionsImage->SetRegions(this->ImageRegion);
+  selectionsImage->Allocate();
+
+  RGBPixelType blackPixel;
+  blackPixel.SetRed(0);
+  blackPixel.SetGreen(0);
+  blackPixel.SetBlue(0);
+  
+  RGBPixelType whitePixel;
+  whitePixel.SetRed(255);
+  whitePixel.SetGreen(255);
+  whitePixel.SetBlue(255);
+
+  Helpers::SetPixelsInRegionToValue(selectionsImage.GetPointer(), selectionsImage->GetLargestPossibleRegion(),
+                                    blackPixel);
+
+  Helpers::SetPixels(selectionsImage.GetPointer(), this->Sources, whitePixel);
+
+  typedef  itk::ImageFileWriter< RGBImageType  > WriterType;
+  WriterType::Pointer writer = WriterType::New();
+  writer->SetFileName(filename.toStdString());
+  writer->SetInput(selectionsImage);
+  writer->Update();
+}
+
+
+void LidarSegmentationWidget::on_action_Selections_SaveBackgroundSelectionsAsImage_triggered()
+{
+  QString filename = QFileDialog::getSaveFileName(this,
+     "Save Image", ".", "PNG Files (*.png)");
+
+  if(filename.isEmpty())
+    {
+    return;
+    }
+
+  RGBImageType::Pointer selectionsImage = RGBImageType::New();
+
+  selectionsImage->SetRegions(this->ImageRegion);
+  selectionsImage->Allocate();
+
+  RGBPixelType blackPixel;
+  blackPixel.SetRed(0);
+  blackPixel.SetGreen(0);
+  blackPixel.SetBlue(0);
+
+  RGBPixelType whitePixel;
+  whitePixel.SetRed(255);
+  whitePixel.SetGreen(255);
+  whitePixel.SetBlue(255);
+
+  Helpers::SetPixelsInRegionToValue(selectionsImage.GetPointer(), selectionsImage->GetLargestPossibleRegion(),
+                                    blackPixel);
+
+  Helpers::SetPixels(selectionsImage.GetPointer(), this->Sinks, whitePixel);
+
+  typedef  itk::ImageFileWriter< RGBImageType  > WriterType;
+  WriterType::Pointer writer = WriterType::New();
+  writer->SetFileName(filename.toStdString());
+  writer->SetInput(selectionsImage);
+  writer->Update();
+}
+
+void LidarSegmentationWidget::on_action_Selections_SaveSelectionsAsText_triggered()
 {
   QString filename = QFileDialog::getSaveFileName(this,
      "Save Selections", ".", "TXT Files (*.txt)");
@@ -492,7 +573,7 @@ void LidarSegmentationWidget::on_actionSaveSelectionsAsText_triggered()
   fout.close();
 }
 
-void LidarSegmentationWidget::on_actionLoadForegroundSelectionsFromImage_triggered()
+void LidarSegmentationWidget::on_action_Selections_LoadForegroundSelectionsFromImage_triggered()
 {
   QString filename = QFileDialog::getOpenFileName(this,
      "Open Image", ".", "PNG Files (*.png)");
@@ -510,6 +591,28 @@ void LidarSegmentationWidget::on_actionLoadForegroundSelectionsFromImage_trigger
   std::vector<itk::Index<2> > pixels = Helpers::GetNonZeroPixels(reader->GetOutput());
 
   this->Sources = pixels;
+
+  UpdateSelections();
+}
+
+void LidarSegmentationWidget::on_action_Selections_LoadBackgroundSelectionsFromImage_triggered()
+{
+  QString filename = QFileDialog::getOpenFileName(this,
+     "Open Image", ".", "PNG Files (*.png)");
+
+  if(filename.isEmpty())
+    {
+    return;
+    }
+
+  typedef  itk::ImageFileReader< MaskImageType  > ReaderType;
+  ReaderType::Pointer reader = ReaderType::New();
+  reader->SetFileName(filename.toStdString());
+  reader->Update();
+
+  std::vector<itk::Index<2> > pixels = Helpers::GetNonZeroPixels(reader->GetOutput());
+
+  this->Sinks = pixels;
 
   UpdateSelections();
 }
@@ -739,7 +842,7 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
   UpdateSelections();
 }
 
-void LidarSegmentationWidget::on_actionLoadSelectionsFromImage_triggered()
+void LidarSegmentationWidget::on_action_Selections_LoadSelectionsFromImage_triggered()
 {
   QString filename = QFileDialog::getOpenFileName(this,
      "Open Image", ".", "PNG Files (*.png)");
@@ -784,7 +887,7 @@ void LidarSegmentationWidget::on_actionLoadSelectionsFromImage_triggered()
 }
 
 
-void LidarSegmentationWidget::on_actionLoadSelectionsFromText_triggered()
+void LidarSegmentationWidget::on_action_Selections_LoadSelectionsFromText_triggered()
 {
   QString filename = QFileDialog::getOpenFileName(this,
      "Open Image", ".", "PNG Files (*.png)");
@@ -1029,4 +1132,48 @@ void LidarSegmentationWidget::on_action_View_ColorImage_triggered()
 {
   Helpers::ITKImageToVTKImage(this->Image.GetPointer(), this->OriginalImageData);
   Refresh();
+}
+
+void LidarSegmentationWidget::on_action_Export_InputScreenshot_triggered()
+{
+  QString filename = QFileDialog::getSaveFileName(this, "Save PNG Screenshot", "", "PNG Files (*.png)");
+
+  if(filename.isEmpty())
+    {
+    return;
+    }
+
+  vtkSmartPointer<vtkWindowToImageFilter> windowToImageFilter =
+    vtkSmartPointer<vtkWindowToImageFilter>::New();
+  windowToImageFilter->SetInput(this->qvtkWidgetLeft->GetRenderWindow());
+  //windowToImageFilter->SetMagnification(3);
+  windowToImageFilter->Update();
+
+  vtkSmartPointer<vtkPNGWriter> writer =
+    vtkSmartPointer<vtkPNGWriter>::New();
+  writer->SetFileName(filename.toStdString().c_str());
+  writer->SetInputConnection(windowToImageFilter->GetOutputPort());
+  writer->Write();
+}
+
+void LidarSegmentationWidget::on_action_Export_ResultScreenshot_triggered()
+{
+  QString filename = QFileDialog::getSaveFileName(this, "Save PNG Screenshot", "", "PNG Files (*.png)");
+
+  if(filename.isEmpty())
+    {
+    return;
+    }
+
+  vtkSmartPointer<vtkWindowToImageFilter> windowToImageFilter =
+    vtkSmartPointer<vtkWindowToImageFilter>::New();
+  windowToImageFilter->SetInput(this->qvtkWidgetRight->GetRenderWindow());
+  //windowToImageFilter->SetMagnification(3);
+  windowToImageFilter->Update();
+
+  vtkSmartPointer<vtkPNGWriter> writer =
+    vtkSmartPointer<vtkPNGWriter>::New();
+  writer->SetFileName(filename.toStdString().c_str());
+  writer->SetInputConnection(windowToImageFilter->GetOutputPort());
+  writer->Write();
 }

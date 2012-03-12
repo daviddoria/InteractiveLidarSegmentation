@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 2.6)
 
 Project(InteractiveLidarSegmentation)
+SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 # Where to copy executables when 'make install' is run
 SET( INSTALL_DIR ${CMAKE_INSTALL_PREFIX} )

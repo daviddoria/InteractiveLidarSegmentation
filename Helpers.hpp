@@ -138,5 +138,18 @@ void SetPixels(TImage* const image, const std::vector<itk::Index<2> >& pixels, t
     }  
 }
 
+template <typename TImage>
+void SetPixelsInRegionToValue(TImage* const image, const itk::ImageRegion<2>& region,
+                              const typename TImage::PixelType& value)
+{
+  itk::ImageRegionIterator<TImage> imageIterator(image, region);
+
+  while(!imageIterator.IsAtEnd())
+    {
+    imageIterator.Set(value);
+    ++imageIterator;
+    }
+}
+
 
 } // end namespace

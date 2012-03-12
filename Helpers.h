@@ -32,7 +32,8 @@ void CreateTransparentImage(vtkImageData* const VTKImage);
 
 void SetImageSize(vtkImageData* const input, vtkImageData* const output);
 
-void SetPixels(vtkImageData* const VTKImage, const std::vector<itk::Index<2> >& pixels, const unsigned char color[3]);
+void SetPixels(vtkImageData* const VTKImage, const std::vector<itk::Index<2> >& pixels,
+               const unsigned char color[3]);
 
 /** Determine if a number is NaN */
 bool IsNaN(const double a);
@@ -84,6 +85,11 @@ void WriteImage(const TImage* const image, const std::string& fileName);
 /** Set all pixels in 'pixels' to 'value' in 'image'. */
 template <typename TImage>
 void SetPixels(TImage* image, const std::vector<itk::Index<2> >& pixels, typename TImage::PixelType& value);
+
+/** Set all pixels in 'pixels' to 'value' in 'image'. */
+template <typename TImage>
+void SetPixelsInRegionToValue(TImage* const image, const itk::ImageRegion<2>& region,
+                              const typename TImage::PixelType& value);
 
 /** Copy an image. */
 template<typename TImage>
