@@ -99,7 +99,7 @@ void LidarSegmentationWidget::SharedConstructor()
   // Left pane
   this->OriginalImageData = vtkSmartPointer<vtkImageData>::New();
   this->OriginalImageSliceMapper = vtkSmartPointer<vtkImageSliceMapper>::New();
-  this->OriginalImageSliceMapper->SetInputConnection(this->OriginalImageData->GetProducerPort());
+  this->OriginalImageSliceMapper->SetInputData(this->OriginalImageData);
   this->OriginalImageSlice = vtkSmartPointer<vtkImageSlice>::New();
   // Make the pixels sharp instead of blurry when zoomed
   this->OriginalImageSlice->GetProperty()->SetInterpolationTypeToNearest();
@@ -121,7 +121,7 @@ void LidarSegmentationWidget::SharedConstructor()
   // Right pane
   this->ResultImageData = vtkSmartPointer<vtkImageData>::New();
   this->ResultImageSliceMapper = vtkSmartPointer<vtkImageSliceMapper>::New();
-  this->ResultImageSliceMapper->SetInputConnection(this->ResultImageData->GetProducerPort());
+  this->ResultImageSliceMapper->SetInputData(this->ResultImageData);
   this->ResultImageSlice = vtkSmartPointer<vtkImageSlice>::New();
   this->ResultImageSlice->SetMapper(this->ResultImageSliceMapper);
   
@@ -141,7 +141,7 @@ void LidarSegmentationWidget::SharedConstructor()
   this->SourceSinkImageData = vtkSmartPointer<vtkImageData>::New();
   
   this->LeftSourceSinkImageSliceMapper = vtkSmartPointer<vtkImageSliceMapper>::New();
-  this->LeftSourceSinkImageSliceMapper->SetInputConnection(this->SourceSinkImageData->GetProducerPort());
+  this->LeftSourceSinkImageSliceMapper->SetInputData(this->SourceSinkImageData);
   
   this->LeftSourceSinkImageSlice = vtkSmartPointer<vtkImageSlice>::New();
   // Make the pixels sharp instead of blurry when zoomed
@@ -151,7 +151,7 @@ void LidarSegmentationWidget::SharedConstructor()
   this->LeftRenderer->AddViewProp(this->LeftSourceSinkImageSlice);
   
   this->RightSourceSinkImageSliceMapper = vtkSmartPointer<vtkImageSliceMapper>::New();
-  this->RightSourceSinkImageSliceMapper->SetInputConnection(this->SourceSinkImageData->GetProducerPort());
+  this->RightSourceSinkImageSliceMapper->SetInputData(this->SourceSinkImageData);
   
   this->RightSourceSinkImageSlice = vtkSmartPointer<vtkImageSlice>::New();
   // Make the pixels sharp instead of blurry when zoomed
@@ -298,7 +298,7 @@ void LidarSegmentationWidget::DisplaySegmentationResult()
   Helpers::MaskImage(VTKImage, VTKSegmentMask, VTKMaskedImage);
 
   // Set the new output and refresh everything
-  this->ResultImageSliceMapper->SetInputConnection(VTKMaskedImage->GetProducerPort());
+  this->ResultImageSliceMapper->SetInputData(VTKMaskedImage);
   
   // Sometimes (in the middle of a two-step segmentation) sources/sinks are modified by the GraphCut object
   this->Sources = this->GraphCut.GetSources();
@@ -1081,7 +1081,7 @@ void LidarSegmentationWidget::OpenFile(const std::string& fileName)
   // Convert the ITK image to a VTK image and display it
   Helpers::ITKImageToVTKImage(reader->GetOutput(), this->OriginalImageData);
 
-  this->OriginalImageSliceMapper->SetInputConnection(this->OriginalImageData->GetProducerPort());
+  this->OriginalImageSliceMapper->SetInputData(this->OriginalImageData);
   this->OriginalImageSlice->SetMapper(this->OriginalImageSliceMapper);
 
   //this->LeftRenderer->AddViewProp(this->OriginalImageSlice);
@@ -1091,10 +1091,10 @@ void LidarSegmentationWidget::OpenFile(const std::string& fileName)
   Helpers::SetImageSize(this->OriginalImageData, this->SourceSinkImageData);
   Helpers::CreateTransparentImage(this->SourceSinkImageData);
 
-  this->LeftSourceSinkImageSliceMapper->SetInputConnection(this->SourceSinkImageData->GetProducerPort());
+  this->LeftSourceSinkImageSliceMapper->SetInputData(this->SourceSinkImageData);
   this->LeftSourceSinkImageSlice->SetMapper(this->LeftSourceSinkImageSliceMapper);
 
-  this->RightSourceSinkImageSliceMapper->SetInputConnection(this->SourceSinkImageData->GetProducerPort());
+  this->RightSourceSinkImageSliceMapper->SetInputData(this->SourceSinkImageData);
   this->RightSourceSinkImageSlice->SetMapper(this->RightSourceSinkImageSliceMapper);
 
   // If this is called, the image disappears in the *left* renderer???

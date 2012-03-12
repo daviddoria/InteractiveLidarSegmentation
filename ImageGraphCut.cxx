@@ -706,7 +706,7 @@ void ImageGraphCut::AssembleAndWriteDebugGraph()
   // Write the file
   vtkSmartPointer<vtkXMLPolyDataWriter> writer = vtkSmartPointer<vtkXMLPolyDataWriter>::New();
   writer->SetFileName("DebugGraph.vtp");
-  writer->SetInput(this->DebugGraphPolyData);
+  writer->SetInputData(this->DebugGraphPolyData);
   writer->Write();
 }
 
