@@ -17,6 +17,10 @@ class vtkPolyData;
 
 namespace Helpers
 {
+
+std::vector<float> ComputeMinOfAllChannels(const ImageType* const image);
+std::vector<float> ComputeMaxOfAllChannels(const ImageType* const image);
+
 unsigned int CountNonZeroPixels(const MaskImageType* const image);
 
 float NegativeLog(const float);

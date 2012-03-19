@@ -25,7 +25,6 @@ add_library(MaxFlow graph.cpp maxflow.cpp)
 ADD_EXECUTABLE(InteractiveLidarSegmentation InteractiveLidarSegmentation.cpp
 LidarSegmentationWidget.cpp
 Helpers.cpp
-Difference.cpp
 InteractorStyleScribble.cxx
 InteractorStyleImageNoLevel.cxx
 ImageGraphCut.cxx

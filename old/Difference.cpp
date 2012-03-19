@@ -1,6 +1,9 @@
 #include "Difference.h"
 #include "Helpers.h"
 
+// STL
+#include <stdexcept>
+
 // ITK
 #include "itkGradientMagnitudeImageFilter.h"
 #include "itkMaximumImageFilter.h"
@@ -97,41 +100,7 @@ void Difference::WriteImages()
   maximumImageFilter->SetInput(0, NormalizedColorDifferenceImage);
   maximumImageFilter->SetInput(1, NormalizedDepthDifferenceImage);
   maximumImageFilter->Update();
-  Helpers::WriteImage<FloatScalarImageType>(maximumImageFilter->GetOutput(), "maxGradientMagnitude.mha");
-  
-#if 0
-  // Combine cleverly
-  FloatScalarImageType::Pointer combinedImage = FloatScalarImageType::New();
-  combinedImage->SetRegions(this->Image->GetLargestPossibleRegion());
-  combinedImage->Allocate();
-  combinedImage->FillBuffer(0);
-  
-  itk::ImageRegionIterator<FloatScalarImageType> combinedImageIterator(combinedImage, combinedImage->GetLargestPossibleRegion());
- 
-  while(!combinedImageIterator.IsAtEnd())
-    {
-    
-//     float depthDifference = depthGradientMagnitudeImage->GetPixel(combinedImageIterator.GetIndex());
-//     float colorDifference = rgbGradientMagnitudeImage->GetPixel(combinedImageIterator.GetIndex());
-//     
-//     //float pixelDifference = std::max(depthDifference, colorDifference) + (depthDifference + colorDifference)/2.0;
-//     float pixelDifference = 0.0;
-//     if(depthDifference < .02)
-//       {
-//       pixelDifference = depthDifference; // If the depth difference is very small then we are in a flat region (??? this is not true, we could also be at a ground boundary)
-//       }
-//     else
-//       {
-//       pixelDifference = depthDifference;
-//       }
-//       
-//     combinedImageIterator.Set(pixelDifference);
-//  
-    ++combinedImageIterator;
-    }
-  Helpers::WriteImage<FloatScalarImageType>(combinedImage, "combinedGradientMagnitude.mha");
-  
-#endif
+  Helpers::WriteImage(maximumImageFilter->GetOutput(), "maxGradientMagnitude.mha");
 }
 
 

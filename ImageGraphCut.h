@@ -35,7 +35,7 @@ class vtkFloatArray;
 
 // Custom
 #include "Types.h"
-#include "Difference.h"
+#include "Difference.hpp"
 
 // Kolmogorov's code
 #include "graph.h"
@@ -115,6 +115,8 @@ public:
   float BackgroundThreshold;
 
 protected:
+
+  float ComputeAverageRandomDifferences(const unsigned int numberOfDifferences);
   
   void CreateGraphNodes();
   
@@ -170,9 +172,9 @@ protected:
   itk::Size<2> Get1x1Radius();
   
   // This function performs the negative exponential weighting
-  float ComputeNEdgeWeight(float difference);
+  float ComputeNEdgeWeight(const float difference);
   
-  float ComputeTEdgeWeight(float histogramValue);
+  float ComputeTEdgeWeight(const float histogramValue);
 
   // Debugging variables/functions
   vtkSmartPointer<vtkPolyData> DebugGraphPolyData;
@@ -188,6 +190,8 @@ protected:
     
   std::vector<float> AllDepthDifferences;
   std::vector<float> AllColorDifferences;
+
+  float Sigma;
 };
 
 #endif

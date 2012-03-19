@@ -571,4 +571,51 @@ void SetImageSize(vtkImageData* input, vtkImageData* output)
   output->SetDimensions(dims); 
 }
 
+std::vector<float> ComputeMinOfAllChannels(const ImageType* const image)
+{
+  std::vector<float> mins(image->GetNumberOfComponentsPerPixel(), -1);
+  
+  for(unsigned int i = 0; i < image->GetNumberOfComponentsPerPixel(); ++i)
+    {
+    typedef itk::VectorIndexSelectionCastImageFilter<ImageType, FloatScalarImageType> IndexSelectionType;
+    IndexSelectionType::Pointer indexSelectionFilter = IndexSelectionType::New();
+    indexSelectionFilter->SetIndex(i);
+    indexSelectionFilter->SetInput(image);
+    indexSelectionFilter->Update();
+
+    typedef itk::MinimumMaximumImageCalculator <FloatScalarImageType> ImageCalculatorFilterType;
+    ImageCalculatorFilterType::Pointer imageCalculatorFilter = ImageCalculatorFilterType::New();
+    imageCalculatorFilter->SetImage(indexSelectionFilter->GetOutput());
+    imageCalculatorFilter->Compute();
+
+    mins[i] = imageCalculatorFilter->GetMinimum();
+    }
+
+  return mins;
+}
+
+std::vector<float> ComputeMaxOfAllChannels(const ImageType* const image)
+{
+  std::vector<float> maxs(image->GetNumberOfComponentsPerPixel(), -1);
+  
+  for(unsigned int i = 0; i < image->GetNumberOfComponentsPerPixel(); ++i)
+    {
+    typedef itk::VectorIndexSelectionCastImageFilter<ImageType, FloatScalarImageType> IndexSelectionType;
+    IndexSelectionType::Pointer indexSelectionFilter = IndexSelectionType::New();
+    indexSelectionFilter->SetIndex(i);
+    indexSelectionFilter->SetInput(image);
+    indexSelectionFilter->Update();
+
+    typedef itk::MinimumMaximumImageCalculator <FloatScalarImageType> ImageCalculatorFilterType;
+    ImageCalculatorFilterType::Pointer imageCalculatorFilter = ImageCalculatorFilterType::New();
+    imageCalculatorFilter->SetImage(indexSelectionFilter->GetOutput());
+    imageCalculatorFilter->Compute();
+
+    maxs[i] = imageCalculatorFilter->GetMaximum();
+    }
+
+  return maxs;
+}
+
+
 } // end namespace

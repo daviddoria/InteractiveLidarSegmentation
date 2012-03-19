@@ -18,7 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "LidarSegmentationWidget.h"
 
 // Custom
-#include "Difference.h"
+#include "Difference.hpp"
 #include "Helpers.h"
 #include "InteractorStyleImageNoLevel.h"
 #include "InteractorStyleScribble.h"
@@ -967,17 +967,18 @@ void LidarSegmentationWidget::on_btnCut_clicked()
   // Setup the Difference object
   if(this->chkDepthDifference->isChecked() && !this->chkColorDifference->isChecked())
     {
-    this->GraphCut.DifferenceFunction = new DifferenceDepth;
+    this->GraphCut.DifferenceFunction = new DepthDifference;
     //this->GraphCut.DifferenceFunction = new DifferenceDepthDataNormalized;
     }
   else if(!this->chkDepthDifference->isChecked() && this->chkColorDifference->isChecked())
     {
-    this->GraphCut.DifferenceFunction = new DifferenceColor;
+    this->GraphCut.DifferenceFunction = new ColorDifference;
     //this->GraphCut.DifferenceFunction = new DifferenceColorDataNormalized;
     }
   else if(this->chkDepthDifference->isChecked() && this->chkColorDifference->isChecked())
     {
-    this->GraphCut.DifferenceFunction = new DifferenceMaxOfColorOrDepth;
+    std::vector<float> weights(4,1.0f);
+    this->GraphCut.DifferenceFunction = new WeightedDifference(weights);
     }
   else
     {
@@ -985,9 +986,7 @@ void LidarSegmentationWidget::on_btnCut_clicked()
     ss << "Something is wrong - you must select depth, color, or both." << std::endl;
     throw std::runtime_error(ss.str());
     }
-  
-  this->GraphCut.DifferenceFunction->SetImage(this->GraphCut.GetImage());
-  
+
   // Get the number of bins from the slider
   this->GraphCut.SetNumberOfHistogramBins(this->sldHistogramBins->value());
 

@@ -10,6 +10,10 @@
 // Custom
 #include "Types.h"
 
+/** The idea of these single argument GetDifference(itk::Index<2>) functions is that the
+ *  Distances to the neighbors has been precomputed by computing the gradient of the image
+ *  And using the gradient at a pixel as the estimate of the difference to its neighbors.
+ */
 class Difference
 {
 public:
@@ -125,26 +129,6 @@ public:
   }
 };
 
-
-class DifferenceMaxOfColorOrDepth : public Difference
-{
-public:
-  // Copy constructor
-  DifferenceMaxOfColorOrDepth(const Difference& input) : Difference(input) {}
-  
-  // Default constructor
-  DifferenceMaxOfColorOrDepth()
-  {
-    std::cout << "Created a DifferenceMaxOfColorOrDepth object." << std::endl;
-  }
-  
-  float GetDifference(const itk::Index<2>& pixel)
-  {
-    return std::max(this->NormalizedColorDifferenceImage->GetPixel(pixel), this->NormalizedDepthDifferenceImage->GetPixel(pixel));
-  }
-  
-  
-};
 
 
 #endif

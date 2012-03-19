@@ -267,7 +267,7 @@ void ImageGraphCut::PerformSegmentation()
     
   if(this->Debug)
     {
-    this->DifferenceFunction->WriteImages();
+    //this->DifferenceFunction->WriteImages();
     }
   this->CreateGraph();
   
@@ -310,6 +310,9 @@ const HistogramType* ImageGraphCut::CreateHistogram(std::vector<itk::Index<2> > 
   sample->SetMeasurementVectorSize(numberOfComponents);
   //std::cout << "Measurement vector size: " << this->ForegroundSample->GetMeasurementVectorSize() << std::endl;
   //std::cout << "Pixel size: " << this->Image->GetPixel(this->Sources[0]).GetNumberOfElements() << std::endl;
+
+  std::vector<float> minimumOfChannels = Helpers::ComputeMinOfAllChannels(this->Image);
+  std::vector<float> maximumOfChannels = Helpers::ComputeMaxOfAllChannels(this->Image);
   
   for(unsigned int pixelId = 0; pixelId < pixels.size(); pixelId++) // Add all of the indicated foreground pixels to the histogram
     {
@@ -324,7 +327,8 @@ const HistogramType* ImageGraphCut::CreateHistogram(std::vector<itk::Index<2> > 
     for(unsigned int component = 0; component < numberOfComponents; component++)
       {
       unsigned int channel = channelsToUse[component];
-      normalizedPixel[component] = (pixel[channel] - this->DifferenceFunction->MinimumOfChannels[channel])/(this->DifferenceFunction->MaximumOfChannels[channel] - this->DifferenceFunction->MinimumOfChannels[channel]);
+      normalizedPixel[component] = (pixel[channel] - minimumOfChannels[channel])/
+                                   (maximumOfChannels[channel] - minimumOfChannels[channel]);
       if(this->Debug)
 	{
 	std::cout << "Pixel " << pixelId << " (" << pixels[pixelId] << ") channel " << channel << " has value " << pixel[channel] << " and normalized value " << normalizedPixel[component] << std::endl;
@@ -395,6 +399,8 @@ void ImageGraphCut::CreateGraphNodes()
 void ImageGraphCut::CreateNWeights()
 {
   ////////// Create n-edges and set n-edge weights (links between image nodes) //////////
+
+  this->Sigma = ComputeAverageRandomDifferences(1000);
   
   if(this->Debug)
     {
@@ -429,27 +435,19 @@ void ImageGraphCut::CreateNWeights()
 
       // If the current neighbor is outside the image, skip it
       if(!inbounds)
-	{
-	continue;
-	}
-	
+        {
+        continue;
+        }
+
       // If pixel or its neighbor is not valid, skip this edge.
       if(neighborPixel[4] && centerPixel[4]) // validity channel
-	{
-	/*
-	float depthDifference = depthGradientMagnitudeImage->GetPixel(iterator.GetIndex());
-	//float colorDifference = rgbGradientMagnitudeImage->GetPixel(iterator.GetIndex() + neighbors[i]);
-	float colorDifference = rgbGradientMagnitudeImage->GetPixel(iterator.GetIndex());
-	//float pixelDifference = std::max(depthDifference, colorDifference);
-	float pixelDifference = std::max(depthDifference, colorDifference) + (depthDifference + colorDifference)/2.0;
-	*/
-	
-	float pixelDifference = this->DifferenceFunction->GetDifference(iterator.GetIndex());
-	  
-	// Compute the edge weight
-	weight = ComputeNEdgeWeight(pixelDifference);
+        {
+        float pixelDifference = this->DifferenceFunction->ComputeDifference(centerPixel, neighborPixel);
 
-	}// end if current and neighbor are valid
+        // Compute the edge weight
+        weight = ComputeNEdgeWeight(pixelDifference);
+
+        }// end if current and neighbor are valid
       // Add the edge to the graph
       void* node1 = this->NodeImage->GetPixel(iterator.GetIndex());
       void* node2 = this->NodeImage->GetPixel(iterator.GetIndex(neighbors[i]));
@@ -525,6 +523,9 @@ void ImageGraphCut::CreateTWeights()
   std::vector<float> sourceTWeights;
   std::vector<float> sourceHistogramValues;
   std::vector<float> sinkHistogramValues;
+
+  std::vector<float> minimumOfChannels = Helpers::ComputeMinOfAllChannels(this->Image);
+  std::vector<float> maximumOfChannels = Helpers::ComputeMaxOfAllChannels(this->Image);
   
   // Use the colors only for the t-weights
   unsigned int debugIteratorCounter = 0;
@@ -535,19 +536,19 @@ void ImageGraphCut::CreateTWeights()
     //float sourceHistogramValue = 0.0;
     float sinkHistogramValue = tinyValue;
     float sourceHistogramValue = tinyValue;
-      
+
     if(pixel[4]) // Pixel is valid
       {
       //std::cout << "Pixels have size: " << pixel.Size() << std::endl;
-      
+
       HistogramType::MeasurementVectorType measurementVector(channelsToUse.size());
       for(unsigned int component = 0; component < channelsToUse.size(); component++)
-	{
-	unsigned int channel = channelsToUse[component];
-	//measurementVector[component] = pixel[channel]; // Un-normalized
-	
-	measurementVector[component] = (pixel[channel] - this->DifferenceFunction->MinimumOfChannels[channel])/(this->DifferenceFunction->MaximumOfChannels[channel] - this->DifferenceFunction->MinimumOfChannels[channel]);
-	}
+        {
+        unsigned int channel = channelsToUse[component];
+        //measurementVector[component] = pixel[channel]; // Un-normalized
+
+        measurementVector[component] = (pixel[channel] - minimumOfChannels[channel])/(maximumOfChannels[channel] - minimumOfChannels[channel]);
+        }
 
       sinkHistogramValue = this->BackgroundHistogram->GetFrequency(this->BackgroundHistogram->GetIndex(measurementVector));
       sourceHistogramValue = this->ForegroundHistogram->GetFrequency(this->ForegroundHistogram->GetIndex(measurementVector));
@@ -557,13 +558,13 @@ void ImageGraphCut::CreateTWeights()
       float normalizedSourceHistogramValue = sourceHistogramValue / static_cast<float>(this->ForegroundHistogram->GetTotalFrequency());
 
       if(normalizedSinkHistogramValue <= 0)
-	{
-	normalizedSinkHistogramValue = tinyValue;
-	}
+        {
+        normalizedSinkHistogramValue = tinyValue;
+        }
       if(normalizedSourceHistogramValue <= 0)
-	{
-	normalizedSourceHistogramValue = tinyValue;
-	}
+        {
+        normalizedSourceHistogramValue = tinyValue;
+        }
 	
 //       std::cout << "Original value: " << pixel[3] << " normalized value: " << measurementVector[0] 
 // 		<< " normalized source histogram count: " << normalizedSourceHistogramValue
@@ -571,50 +572,50 @@ void ImageGraphCut::CreateTWeights()
 // 		
       //std::cout << "Setting background weight to: " << -this->Lambda*log(sinkHistogramValue) << std::endl;
       //std::cout << "Setting foreground weight to: " << -this->Lambda*log(sourceHistogramValue) << std::endl;
-      
+
       sinkHistogramValues.push_back(normalizedSinkHistogramValue);
       sourceHistogramValues.push_back(normalizedSourceHistogramValue);
-      
+
       //float sinkWeight = -this->Lambda*log(normalizedSinkHistogramValue);
       // NOTE! The sink weight t-link is set as a function of the FOREGROUND probability.
       float sinkWeight = ComputeTEdgeWeight(Helpers::NegativeLog(normalizedSourceHistogramValue));
       sinkTWeights.push_back(sinkWeight);
-      
+
       //float sourceWeight = -this->Lambda*log(normalizedSourceHistogramValue);
       // NOTE! The source weight t-link is set as a function of the BACKGROUND probability.
       float sourceWeight = ComputeTEdgeWeight(Helpers::NegativeLog(normalizedSinkHistogramValue));
       sourceTWeights.push_back(sourceWeight);
-      
+
       // Add the edge to the graph and set its weight
       // See the table on p108 of "Interactive Graph Cuts for Optimal Boundary & Region Segmentation of Objects in N-D Images". 
-      
+
       this->Graph->add_tweights(nodeIterator.Get(), sourceWeight, sinkWeight); // (node_id, source, sink)
-      
+
       if(this->Debug)
-	{
-	this->DebugGraphSinkWeights->SetValue(debugIteratorCounter, sinkWeight);
-	this->DebugGraphSourceWeights->SetValue(debugIteratorCounter, sourceWeight);
-      
-	this->DebugGraphSourceHistogram->SetValue(debugIteratorCounter, normalizedSourceHistogramValue);
-	this->DebugGraphSinkHistogram->SetValue(debugIteratorCounter, normalizedSinkHistogramValue);
-	}
+        {
+        this->DebugGraphSinkWeights->SetValue(debugIteratorCounter, sinkWeight);
+        this->DebugGraphSourceWeights->SetValue(debugIteratorCounter, sourceWeight);
+
+        this->DebugGraphSourceHistogram->SetValue(debugIteratorCounter, normalizedSourceHistogramValue);
+        this->DebugGraphSinkHistogram->SetValue(debugIteratorCounter, normalizedSinkHistogramValue);
+        }
       }
     else
       {
       this->Graph->add_tweights(nodeIterator.Get(), 0, 0);
       if(this->Debug)
-	{
-	this->DebugGraphSinkWeights->SetValue(debugIteratorCounter, 0);
-	this->DebugGraphSourceWeights->SetValue(debugIteratorCounter, 0);
-	this->DebugGraphSourceHistogram->SetValue(debugIteratorCounter, 0);
-	this->DebugGraphSinkHistogram->SetValue(debugIteratorCounter, 0);
-	}
+        {
+        this->DebugGraphSinkWeights->SetValue(debugIteratorCounter, 0);
+        this->DebugGraphSourceWeights->SetValue(debugIteratorCounter, 0);
+        this->DebugGraphSourceHistogram->SetValue(debugIteratorCounter, 0);
+        this->DebugGraphSinkHistogram->SetValue(debugIteratorCounter, 0);
+        }
       }
     debugIteratorCounter++;
     ++imageIterator;
     ++nodeIterator;
     }
-    
+
   if(this->Debug)
     {
     std::cout << "Average sinkHistogramValue: " << Helpers::VectorAverage<float>(sinkHistogramValues) << std::endl;
@@ -802,7 +803,6 @@ itk::Size<2> ImageGraphCut::Get1x1Radius()
 void ImageGraphCut::ConstructNeighborhoodIterator(NeighborhoodIteratorType* iterator, std::vector<NeighborhoodIteratorType::OffsetType>& neighbors)
 {
   // We are using an 8-connected structure, so the kernel (iteration neighborhood) must only be 3x3 (specified by a radius of 1)
-  
 
   // Traverse the image comparing:
   // - the current pixel and the pixel below it
@@ -829,15 +829,39 @@ void ImageGraphCut::ConstructNeighborhoodIterator(NeighborhoodIteratorType* iter
 }
 
 
-float ImageGraphCut::ComputeNEdgeWeight(float difference)
+float ImageGraphCut::ComputeNEdgeWeight(const float difference)
 {
   // This value should correspond to the variance (aka average) of the difference function you are using over the whole image.
-  float sigma = this->DifferenceFunction->AverageDifference;
+  //float sigma = this->DifferenceFunction->AverageDifference;
+  //float sigma = 1.0f;
+
+  float sigma = this->Sigma;
   
   return exp(-pow(difference,2)/(2.0*sigma*sigma));
 }
 
-float ImageGraphCut::ComputeTEdgeWeight(float value)
+float ImageGraphCut::ComputeTEdgeWeight(const float value)
 {
   return this->Lambda * value;
+}
+
+float ImageGraphCut::ComputeAverageRandomDifferences(const unsigned int numberOfDifferences)
+{
+  float sum = 0.0f;
+  for(unsigned int i = 0; i < numberOfDifferences; ++i)
+  {
+    // Choose a random pixel
+    itk::Index<2> pixel;
+    pixel[0] = rand() % this->Image->GetLargestPossibleRegion().GetSize()[0] - 2;
+    pixel[1] = rand() % this->Image->GetLargestPossibleRegion().GetSize()[1] - 2;
+
+    itk::Index<2> pixelB = pixel;
+    pixelB[0] += 1;
+    
+    float difference = this->DifferenceFunction->ComputeDifference(this->Image->GetPixel(pixel), this->Image->GetPixel(pixelB));
+
+    sum += difference;
+  }
+
+  return sum / static_cast<float>(numberOfDifferences);
 }
