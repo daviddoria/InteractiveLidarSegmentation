@@ -50,17 +50,14 @@ void Difference::Compute()
 {
   if(!this->Image)
     {
-    std::cerr << "An image must be set before calling Difference::Compute()!" << std::endl;
-    exit(-1);
+    throw std::runtime_error("An image must be set before calling Difference::Compute()!");
     }
-    
+
   CreateNormalizedColorGradientMagnitude();
-  
+
   CreateNormalizedDepthGradientMagnitude();
   ComputeMinAndMaxInAllChannels();  
-  
 }
-
 
 void Difference::ComputeMinAndMaxInAllChannels()
 {
@@ -90,12 +87,12 @@ void Difference::ComputeMinAndMaxInAllChannels()
 
 void Difference::WriteImages()
 {
-  Helpers::WriteImage<FloatScalarImageType>(NormalizedColorDifferenceImage, "colorGradientMagnitude.mha");
+  Helpers::WriteImage(NormalizedColorDifferenceImage.GetPointer(), "colorGradientMagnitude.mha");
   
   // Compute depth gradient
-  Helpers::WriteImage<FloatScalarImageType>(NormalizedDepthDifferenceImage, "depthGradientMagnitude.mha");
+  Helpers::WriteImage(NormalizedDepthDifferenceImage.GetPointer(), "depthGradientMagnitude.mha");
   
-  typedef itk::MaximumImageFilter <FloatScalarImageType> MaximumImageFilterType;
+  typedef itk::MaximumImageFilter<FloatScalarImageType> MaximumImageFilterType;
   MaximumImageFilterType::Pointer maximumImageFilter = MaximumImageFilterType::New ();
   maximumImageFilter->SetInput(0, NormalizedColorDifferenceImage);
   maximumImageFilter->SetInput(1, NormalizedDepthDifferenceImage);
@@ -221,20 +218,20 @@ void Difference::CreateNormalizedColorGradientMagnitude()
 
 void Difference::CreateNormalizedDepthGradientMagnitude()
 {
-  FloatScalarImageType::Pointer depthImage = FloatScalarImageType::New();
-  CreateDepthImage(depthImage);
-  
-  typedef itk::GradientMagnitudeImageFilter<FloatScalarImageType, FloatScalarImageType >  DepthGradientMagnitudeImageFilterType;
-  DepthGradientMagnitudeImageFilterType::Pointer depthGradientMagnitudeImageFilter = DepthGradientMagnitudeImageFilterType::New();
-  depthGradientMagnitudeImageFilter->SetInput(depthImage);
-  depthGradientMagnitudeImageFilter->Update();
-  
-  typedef itk::RescaleIntensityImageFilter< FloatScalarImageType, FloatScalarImageType > DepthGradientRescaleFilterType;
-  DepthGradientRescaleFilterType::Pointer depthGradientRescaleFilter = DepthGradientRescaleFilterType::New();
-  depthGradientRescaleFilter->SetInput(depthGradientMagnitudeImageFilter->GetOutput());
-  depthGradientRescaleFilter->SetOutputMinimum(0);
-  depthGradientRescaleFilter->SetOutputMaximum(1);
-  depthGradientRescaleFilter->Update();
-  
-  Helpers::DeepCopy<FloatScalarImageType>(depthGradientRescaleFilter->GetOutput(), NormalizedDepthDifferenceImage);
+//   FloatScalarImageType::Pointer depthImage = FloatScalarImageType::New();
+//   CreateDepthImage(depthImage);
+//   
+//   typedef itk::GradientMagnitudeImageFilter<FloatScalarImageType, FloatScalarImageType >  DepthGradientMagnitudeImageFilterType;
+//   DepthGradientMagnitudeImageFilterType::Pointer depthGradientMagnitudeImageFilter = DepthGradientMagnitudeImageFilterType::New();
+//   depthGradientMagnitudeImageFilter->SetInput(depthImage);
+//   depthGradientMagnitudeImageFilter->Update();
+//   
+//   typedef itk::RescaleIntensityImageFilter< FloatScalarImageType, FloatScalarImageType > DepthGradientRescaleFilterType;
+//   DepthGradientRescaleFilterType::Pointer depthGradientRescaleFilter = DepthGradientRescaleFilterType::New();
+//   depthGradientRescaleFilter->SetInput(depthGradientMagnitudeImageFilter->GetOutput());
+//   depthGradientRescaleFilter->SetOutputMinimum(0);
+//   depthGradientRescaleFilter->SetOutputMaximum(1);
+//   depthGradientRescaleFilter->Update();
+//   
+//   Helpers::DeepCopy(depthGradientRescaleFilter->GetOutput(), NormalizedDepthDifferenceImage.GetPointer());
 }

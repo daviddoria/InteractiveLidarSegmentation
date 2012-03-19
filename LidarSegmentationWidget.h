@@ -140,7 +140,7 @@ private:
   void Refresh();
 
   /** The main segmentation class. This will be instantiated as a ImageGraphCut
-   *  after the user selects whether to open a color or grayscale image. */
+   *  after the user selects an image. */
   ImageGraphCut GraphCut;
 
   /** Allows the background color to be changed */

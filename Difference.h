@@ -41,7 +41,7 @@ public:
   void WriteImages();
   
   void Compute();
-  virtual float GetDifference(itk::Index<2>) = 0;
+  virtual float GetDifference(const itk::Index<2>& pixel) = 0;
   //virtual float GetAverageDifference() = 0;
   float GetAverageDifference();
   
@@ -70,6 +70,24 @@ protected:
   ImageType::Pointer Image;
 };
 
+class DifferenceWeighted : public Difference
+{
+public:
+  // Copy constructor
+  DifferenceWeighted(const Difference& input) : Difference(input) {}
+
+  // Default constructor
+  DifferenceWeighted()
+  {
+    std::cout << "Created a DifferenceWeighted object." << std::endl;
+  }
+
+  float GetDifference(const itk::Index<2>& pixel)
+  {
+    return this->NormalizedDepthDifferenceImage->GetPixel(pixel);
+  }
+};
+
 class DifferenceDepth : public Difference
 {
 public:
@@ -82,7 +100,7 @@ public:
     std::cout << "Created a DifferenceDepth object." << std::endl;
   }
   
-  float GetDifference(itk::Index<2> pixel)
+  float GetDifference(const itk::Index<2>& pixel)
   {
     return this->NormalizedDepthDifferenceImage->GetPixel(pixel);
   }
@@ -101,7 +119,7 @@ public:
     std::cout << "Created a DifferenceColor object." << std::endl;
   }
   
-  float GetDifference(itk::Index<2> pixel)
+  float GetDifference(const itk::Index<2>& pixel)
   {
     return this->NormalizedColorDifferenceImage->GetPixel(pixel);
   }
@@ -120,57 +138,13 @@ public:
     std::cout << "Created a DifferenceMaxOfColorOrDepth object." << std::endl;
   }
   
-  float GetDifference(itk::Index<2> pixel)
+  float GetDifference(const itk::Index<2>& pixel)
   {
     return std::max(this->NormalizedColorDifferenceImage->GetPixel(pixel), this->NormalizedDepthDifferenceImage->GetPixel(pixel));
   }
   
   
 };
-  
-#if 0
-class DifferenceDepthWeightedByColor : public Difference
-{
-public:
-  // Copy constructor
-  DifferenceDepthWeightedByColor(const Difference& input) : Difference(input) {}
-  
-  // Default constructor
-  DifferenceDepthWeightedByColor(){}
-  
-  float Compute(PixelType a, PixelType b)
-  {
-    // Using normalized values is much better because then the main graph cut lambda does not change wildly from data set to data set
-    DifferenceColorDataNormalized differenceColorDataNormalized(*this);
-    float colorDifference = differenceColorDataNormalized.Compute(a,b);
-    
-    DifferenceDepthDataNormalized differenceDepthDataNormalized(*this);
-    float depthDifference = differenceDepthDataNormalized.Compute(a,b);
 
-    return std::max(depthDifference, colorDifference) + (depthDifference + colorDifference)/2.0;
-  }
-};
-
-class DifferenceEuclidean : public Difference
-{
-public:
-  // Copy constructor
-  DifferenceEuclidean(const Difference& input) : Difference(input) {}
-  
-  // Default constructor
-  DifferenceEuclidean(){}
-
-  float Compute(PixelType a, PixelType b)
-  {
-    float difference = 0.0;
-    for(unsigned int i = 0; i < 3u; i++)
-      {
-      difference += pow(a[i] - b[i],2);
-      }
-    return sqrt(difference);
-  }
-
-};
-#endif
 
 #endif

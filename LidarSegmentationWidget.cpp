@@ -34,10 +34,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "itkImageRegionConstIteratorWithIndex.h"
 #include "itkLineIterator.h"
 #include "itkNthElementImageAdaptor.h"
-#include "itkXorImageFilter.h"
 #include "itkRegionOfInterestImageFilter.h"
-#include "itkVectorIndexSelectionCastImageFilter.h"
 #include "itkStatisticsImageFilter.h"
+#include "itkThresholdImageFilter.h"
+#include "itkVectorIndexSelectionCastImageFilter.h"
+#include "itkXorImageFilter.h"
 
 // VTK
 #include <vtkCamera.h>
@@ -79,6 +80,9 @@ void LidarSegmentationWidget::SharedConstructor()
   setupUi(this);
 
   this->ProgressDialog = new QProgressDialog();
+  this->ProgressDialog->setMinimum(0);
+  this->ProgressDialog->setMaximum(0);
+  this->ProgressDialog->setWindowModality(Qt::WindowModal);
   connect(&this->FutureWatcher, SIGNAL(finished()), this, SLOT(slot_SegmentationComplete()));
   connect(&this->FutureWatcher, SIGNAL(finished()), this->ProgressDialog , SLOT(cancel()));
   
@@ -114,7 +118,8 @@ void LidarSegmentationWidget::SharedConstructor()
   this->LeftRenderer->AddViewProp(this->OriginalImageSlice);
 
   this->LeftInteractorStyle = vtkSmartPointer<InteractorStyleScribble>::New();
-  this->LeftInteractorStyle->AddObserver(this->LeftInteractorStyle->ScribbleEvent, this, &LidarSegmentationWidget::ScribbleEventHandler);
+  this->LeftInteractorStyle->AddObserver(this->LeftInteractorStyle->ScribbleEvent,
+                                         this, &LidarSegmentationWidget::ScribbleEventHandler);
   this->LeftInteractorStyle->SetCurrentRenderer(this->LeftRenderer);
   this->qvtkWidgetLeft->GetInteractor()->SetInteractorStyle(this->LeftInteractorStyle);
 
@@ -716,13 +721,16 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
   Helpers::WriteImage<MaskImageType>(xorFilter->GetOutput(), "boundaryOfSegmentation.png");
   */
   
-  // Iterate over the border pixels. If the closest pixel in the original segmentation has a depth greater than a threshold, mark it as a new sink. Else, do not.
+  // Iterate over the border pixels. If the closest pixel in the original segmentation has
+  // a depth greater than a threshold, mark it as a new sink. Else, do not.
   std::cout << "Determining which boundary pixels should be declared background..." << std::endl;
-  //std::cout << "There should be " << Helpers::CountNonZeroPixels(xorFilter->GetOutput()) << " considered." << std::endl;
+  //std::cout << "There should be " << Helpers::CountNonZeroPixels(xorFilter->GetOutput())
+  //          << " considered." << std::endl;
   
   /*
   std::vector<itk::Index<2> > newSinks;
-  itk::ImageRegionIterator<MaskImageType> imageIterator(xorFilter->GetOutput(), xorFilter->GetOutput()->GetLargestPossibleRegion());
+  itk::ImageRegionIterator<MaskImageType> imageIterator(xorFilter->GetOutput(),
+                                     xorFilter->GetOutput()->GetLargestPossibleRegion());
 
   unsigned int consideredCounter = 0;
   unsigned int backgroundCounter = 0;
@@ -731,7 +739,8 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
     if(imageIterator.Get()) // If the current pixel is in question
       {
       consideredCounter++;
-      //std::cout << "Considering pixel " << consideredCounter << " (index " << imageIterator.GetIndex() << ")" << std::endl;
+      //std::cout << "Considering pixel " << consideredCounter << " (index "
+                  << imageIterator.GetIndex() << ")" << std::endl;
       ImageType::PixelType currentPixel = this->Image->GetPixel(imageIterator.GetIndex());
       itk::Index<2> closestPixelIndex = Helpers::FindClosestNonZeroPixel(sourcesImage, imageIterator.GetIndex());
       //std::cout << "Closest pixel is " << closestPixelIndex << std::endl;
@@ -755,7 +764,8 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
     }
   */
   std::vector<itk::Index<2> > newSinks;
-  itk::ImageRegionIterator<MaskImageType> imageIterator(xorFilter->GetOutput(), xorFilter->GetOutput()->GetLargestPossibleRegion());
+  itk::ImageRegionIterator<MaskImageType> imageIterator(xorFilter->GetOutput(),
+                                                        xorFilter->GetOutput()->GetLargestPossibleRegion());
 
   typedef itk::VectorIndexSelectionCastImageFilter<ImageType, FloatScalarImageType> IndexSelectionType;
   IndexSelectionType::Pointer indexSelectionFilter = IndexSelectionType::New();
@@ -771,10 +781,12 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
     if(imageIterator.Get()) // If the current pixel is in question
       {
       consideredPixels.push_back(imageIterator.GetIndex());
-      //std::cout << "Considering pixel " << consideredCounter << " (index " << imageIterator.GetIndex() << ")" << std::endl;
+      //std::cout << "Considering pixel " << consideredCounter << " (index "
+      //          << imageIterator.GetIndex() << ")" << std::endl;
       ImageType::PixelType currentPixel = this->Image->GetPixel(imageIterator.GetIndex());
       
-      typedef itk::RegionOfInterestImageFilter< FloatScalarImageType, FloatScalarImageType > RegionOfInterestImageFilterType;
+      typedef itk::RegionOfInterestImageFilter< FloatScalarImageType, FloatScalarImageType >
+              RegionOfInterestImageFilterType;
       RegionOfInterestImageFilterType::Pointer regionOfInterestImageFilter = RegionOfInterestImageFilterType::New();
       //unsigned int radius = 2;
       unsigned int radius = this->txtBackgroundCheckRadius->text().toUInt();
@@ -786,7 +798,8 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
       size.Fill(radius*2 + 1);
     
       ImageType::RegionType desiredRegion(start, size);
-      //std::cout << "Checking pixel: " << imageIterator.GetIndex() << " with region: " << desiredRegion << std::endl;
+      //std::cout << "Checking pixel: " << imageIterator.GetIndex()
+      //          << " with region: " << desiredRegion << std::endl;
       
       regionOfInterestImageFilter->SetRegionOfInterest(desiredRegion);
       regionOfInterestImageFilter->SetInput(depthImage);
@@ -832,7 +845,8 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
   Helpers::IndicesToBinaryImage(newSinks, newSinksImage);
   Helpers::WriteImage<MaskImageType>(newSinksImage, "newSinks.png");
 
-  //std::cout << "Out of " << consideredCounter << " pixels considered, " << backgroundCounter << " were declared background." << std::endl;
+  //std::cout << "Out of " << consideredCounter << " pixels considered, "
+  //          << backgroundCounter << " were declared background." << std::endl;
   // Set the new sinks
   std::cout << "Setting " << newSinks.size() << " new sinks." << std::endl;
 
@@ -867,7 +881,8 @@ void LidarSegmentationWidget::on_action_Selections_LoadSelectionsFromImage_trigg
   redPixel.SetGreen(0);
   redPixel.SetBlue(0);
   
-  itk::ImageRegionConstIterator<RGBImageType> imageIterator(reader->GetOutput(), reader->GetOutput()->GetLargestPossibleRegion());
+  itk::ImageRegionConstIterator<RGBImageType> imageIterator(reader->GetOutput(),
+                                                            reader->GetOutput()->GetLargestPossibleRegion());
  
   while(!imageIterator.IsAtEnd())
     {
@@ -923,8 +938,9 @@ void LidarSegmentationWidget::on_action_Selections_LoadSelectionsFromText_trigge
       }
     else
       {
-      std::cerr << "Selectiontype is " << selectionType << " - should be 'f' or 'b' (foreground or background)" << std::endl;
-      exit(-1);
+      std::stringstream ss;
+      ss << "Selectiontype is " << selectionType << " - should be 'f' or 'b' (foreground or background)";
+      throw std::runtime_error(ss.str());
       }
     }
 }
@@ -965,8 +981,9 @@ void LidarSegmentationWidget::on_btnCut_clicked()
     }
   else
     {
-    std::cerr << "Something is wrong - you must select depth, color, or both." << std::endl;
-    exit(-1);
+    std::stringstream ss;
+    ss << "Something is wrong - you must select depth, color, or both." << std::endl;
+    throw std::runtime_error(ss.str());
     }
   
   this->GraphCut.DifferenceFunction->SetImage(this->GraphCut.GetImage());
@@ -993,9 +1010,6 @@ void LidarSegmentationWidget::on_btnCut_clicked()
   QFuture<void> future = QtConcurrent::run(this->GraphCut, &ImageGraphCut::PerformSegmentation);
   this->FutureWatcher.setFuture(future);
 
-  this->ProgressDialog->setMinimum(0);
-  this->ProgressDialog->setMaximum(0);
-  this->ProgressDialog->setWindowModality(Qt::WindowModal);
   this->ProgressDialog->exec();
 
 }
@@ -1019,7 +1033,8 @@ void InnerWidget::actionSave_Segmentation_triggered()
     tr("Save Segment Mask Image"), "/home/doriad", tr("Image Files (*.png *.bmp)"));
 /*
   // Convert the image from a 1D vector image to an unsigned char image
-  typedef itk::CastImageFilter< GrayscaleImageType, itk::Image<itk::CovariantVector<unsigned char, 1>, 2 > > CastFilterType;
+  typedef itk::CastImageFilter< GrayscaleImageType,
+                                itk::Image<itk::CovariantVector<unsigned char, 1>, 2 > > CastFilterType;
   CastFilterType::Pointer castFilter = CastFilterType::New();
   castFilter->SetInput(this->GraphCut->GetSegmentMask());
 
@@ -1124,7 +1139,24 @@ void LidarSegmentationWidget::Refresh()
 
 void LidarSegmentationWidget::on_action_View_DepthImage_triggered()
 {
-  Helpers::ITKImageChannelToVTKImage(this->Image.GetPointer(), 3, this->OriginalImageData);
+  //Helpers::ITKImageChannelToVTKImage(thresholdFilter->GetOutput(), 3, this->OriginalImageData);
+  
+  typedef itk::Image<ImageType::InternalPixelType, 2> ScalarImageType;
+  ScalarImageType::Pointer depthImage = ScalarImageType::New();
+  
+  Helpers::ExtractChannel(this->Image.GetPointer(), 3, depthImage.GetPointer());
+  
+  typedef itk::ThresholdImageFilter<ScalarImageType> ThresholdImageFilterType;
+
+  float maxDepth = 20.0f;
+  ThresholdImageFilterType::Pointer thresholdFilter = ThresholdImageFilterType::New();
+  thresholdFilter->SetInput(depthImage);
+  thresholdFilter->ThresholdAbove(maxDepth);
+  thresholdFilter->SetOutsideValue(maxDepth);
+  thresholdFilter->Update();
+  
+  Helpers::ITKScalarImageToVTKImage(thresholdFilter->GetOutput(), this->OriginalImageData);
+  
   Refresh();
 }
 

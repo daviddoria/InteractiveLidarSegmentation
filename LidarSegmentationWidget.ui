@@ -120,7 +120,7 @@
            </layout>
           </item>
           <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_4">
+           <layout class="QHBoxLayout" name="horizontalLayout_5">
             <item>
              <widget class="QLabel" name="label">
               <property name="text">
@@ -128,17 +128,6 @@
               </property>
              </widget>
             </item>
-            <item>
-             <widget class="QLabel" name="label_4">
-              <property name="text">
-               <string>Lambda</string>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_5">
             <item>
              <widget class="QLabel" name="label_5">
               <property name="text">
@@ -163,6 +152,13 @@
              <widget class="QLabel" name="label_6">
               <property name="text">
                <string>100%</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_4">
+              <property name="text">
+               <string>Lambda</string>
               </property>
              </widget>
             </item>
@@ -291,7 +287,7 @@
           <item>
            <widget class="QLabel" name="label_12">
             <property name="text">
-             <string>N-Weights</string>
+             <string>N-Weight Difference function</string>
             </property>
            </widget>
           </item>
@@ -378,7 +374,7 @@
      <x>0</x>
      <y>0</y>
      <width>1232</width>
-     <height>21</height>
+     <height>28</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">

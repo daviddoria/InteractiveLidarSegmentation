@@ -7,6 +7,8 @@
 
 // ITK
 #include "itkImageFileWriter.h"
+#include "itkRescaleIntensityImageFilter.h"
+#include "itkVectorIndexSelectionCastImageFilter.h"
 
 namespace Helpers
 {
@@ -151,5 +153,55 @@ void SetPixelsInRegionToValue(TImage* const image, const itk::ImageRegion<2>& re
     }
 }
 
+template<typename TImage>
+void ITKScalarImageToVTKImage(const TImage* const image, vtkImageData* const outputImage)
+{
+  // Rescale and cast for display
+  typedef itk::RescaleIntensityImageFilter<
+                  TImage, UnsignedCharScalarImageType > RescaleFilterType;
+
+  typename RescaleFilterType::Pointer rescaleFilter = RescaleFilterType::New();
+  rescaleFilter->SetOutputMinimum(0);
+  rescaleFilter->SetOutputMaximum(255);
+  rescaleFilter->SetInput(image);
+  rescaleFilter->Update();
+
+  // Setup and allocate the VTK image
+  outputImage->SetDimensions(image->GetLargestPossibleRegion().GetSize()[0],
+                             image->GetLargestPossibleRegion().GetSize()[1],
+                             1);
+
+  outputImage->AllocateScalars(VTK_UNSIGNED_CHAR, 1);
+
+  // Copy all of the scaled magnitudes to the output image
+  itk::ImageRegionConstIteratorWithIndex<UnsignedCharScalarImageType>
+    imageIterator(rescaleFilter->GetOutput(), rescaleFilter->GetOutput()->GetLargestPossibleRegion());
+
+  while(!imageIterator.IsAtEnd())
+    {
+    unsigned char* pixel = static_cast<unsigned char*>(outputImage->GetScalarPointer(imageIterator.GetIndex()[0],
+                                                                                     imageIterator.GetIndex()[1],0));
+    pixel[0] = imageIterator.Get();
+
+    ++imageIterator;
+    }
+}
+
+
+template<typename TPixel>
+void ExtractChannel(const itk::VectorImage<TPixel, 2>* const image, const unsigned int channel,
+                    itk::Image<TPixel, 2>* const output)
+{
+  typedef itk::VectorImage<TPixel, 2> VectorImageType;
+  typedef itk::Image<TPixel, 2> ScalarImageType;
+
+  typedef itk::VectorIndexSelectionCastImageFilter<VectorImageType, ScalarImageType > IndexSelectionType;
+  typename IndexSelectionType::Pointer indexSelectionFilter = IndexSelectionType::New();
+  indexSelectionFilter->SetIndex(channel);
+  indexSelectionFilter->SetInput(image);
+  indexSelectionFilter->Update();
+
+  DeepCopy(indexSelectionFilter->GetOutput(), output);
+}
 
 } // end namespace

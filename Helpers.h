@@ -23,7 +23,8 @@ float NegativeLog(const float);
 
 std::vector<itk::Index<2> > GetNonZeroPixels(const MaskImageType* const image);
   
-bool FindClosestNonZeroPixel(const MaskImageType* const image, itk::Index<2> queryPixel, const unsigned int radiusValue, const itk::Index<2>& index);
+bool FindClosestNonZeroPixel(const MaskImageType* const image, itk::Index<2> queryPixel,
+                             const unsigned int radiusValue, const itk::Index<2>& index);
 itk::Index<2> FindClosestNonZeroPixel(const MaskImageType* const mask, itk::Index<2>& returnIndex);
 
 void MaskImage(vtkImageData* const VTKImage, vtkImageData* const VTKSegmentMask, vtkImageData* const VTKMaskedImage);
@@ -99,6 +100,14 @@ void DeepCopy(const TImage* const input, TImage* const output);
 template<typename TPixel>
 void DeepCopy(const itk::VectorImage<TPixel, 2>* const input,
               itk::VectorImage<TPixel, 2>* const output);
+
+/** Extract a channel of an image. */
+template<typename TPixel>
+void ExtractChannel(const itk::VectorImage<TPixel, 2>* const image, const unsigned int channel,
+                    typename itk::Image<TPixel, 2>* const output);
+
+template<typename TImage>
+void ITKScalarImageToVTKImage(const TImage* const image, vtkImageData* const outputImage);
 }
 
 #include "Helpers.hpp"
