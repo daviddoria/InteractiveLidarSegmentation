@@ -486,7 +486,7 @@ void LidarSegmentationWidget::on_action_Selections_SaveSelectionsAsImage_trigger
 void LidarSegmentationWidget::on_action_Selections_SaveForegroundSelectionsAsImage_triggered()
 {
   QString filename = QFileDialog::getSaveFileName(this,
-     "Save Image", ".", "PNG Files (*.png)");
+     "Save Image", "foreground.png", "PNG Files (*.png)");
 
   if(filename.isEmpty())
     {
@@ -524,7 +524,7 @@ void LidarSegmentationWidget::on_action_Selections_SaveForegroundSelectionsAsIma
 void LidarSegmentationWidget::on_action_Selections_SaveBackgroundSelectionsAsImage_triggered()
 {
   QString filename = QFileDialog::getSaveFileName(this,
-     "Save Image", ".", "PNG Files (*.png)");
+     "Save Image", "background.png", "PNG Files (*.png)");
 
   if(filename.isEmpty())
     {
@@ -1228,4 +1228,38 @@ void LidarSegmentationWidget::on_action_Export_ResultScreenshot_triggered()
   writer->SetFileName(filename.toStdString().c_str());
   writer->SetInputConnection(windowToImageFilter->GetOutputPort());
   writer->Write();
+}
+
+void LidarSegmentationWidget::on_btnReseedForeground_clicked()
+{
+  std::vector<itk::Index<2> > pixels = Helpers::GetNonZeroPixels(this->GraphCut.GetSegmentMask());
+
+  this->Sources = pixels;
+
+  UpdateSelections();
+}
+
+void LidarSegmentationWidget::on_btnShowStrokesRight_clicked()
+{
+  RightSourceSinkImageSlice->VisibilityOn();
+  Refresh();
+}
+
+void LidarSegmentationWidget::on_btnHideStrokesRight_clicked()
+{
+  RightSourceSinkImageSlice->VisibilityOff();
+  Refresh();
+}
+
+
+void LidarSegmentationWidget::on_btnShowStrokesLeft_clicked()
+{
+  LeftSourceSinkImageSlice->VisibilityOn();
+  Refresh();
+}
+
+void LidarSegmentationWidget::on_btnHideStrokesLeft_clicked()
+{
+  LeftSourceSinkImageSlice->VisibilityOff();
+  Refresh();
 }

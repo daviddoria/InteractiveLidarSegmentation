@@ -87,6 +87,13 @@ public slots:
   void on_radForeground_clicked();
   void on_radBackground_clicked();
   void on_sldHistogramBins_valueChanged();
+
+  void on_btnReseedForeground_clicked();
+  void on_btnShowStrokesLeft_clicked();
+  void on_btnHideStrokesLeft_clicked();
+
+  void on_btnShowStrokesRight_clicked();
+  void on_btnHideStrokesRight_clicked();
   
   /** Setting lambda must be handled specially because we need to multiply the percentage
    *  set by the slider by the MaxLambda set in the text box */

@@ -99,6 +99,24 @@
         <item>
          <layout class="QVBoxLayout" name="verticalLayout_4">
           <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_11">
+            <item>
+             <widget class="QPushButton" name="btnShowStrokesLeft">
+              <property name="text">
+               <string>Show strokes</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnHideStrokesLeft">
+              <property name="text">
+               <string>Hide strokes</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
            <layout class="QHBoxLayout" name="horizontalLayout_3">
             <item>
              <widget class="QLabel" name="label_3">
@@ -224,9 +242,34 @@
         <item>
          <layout class="QVBoxLayout" name="verticalLayout_3">
           <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_10">
+            <item>
+             <widget class="QPushButton" name="btnShowStrokesRight">
+              <property name="text">
+               <string>Show strokes</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnHideStrokesRight">
+              <property name="text">
+               <string>Hide strokes</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
            <widget class="QPushButton" name="btnErodeSources">
             <property name="text">
              <string>Erode Sources</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnReseedForeground">
+            <property name="text">
+             <string>Use current foreground as seeds</string>
             </property>
            </widget>
           </item>
@@ -445,7 +488,6 @@
      <string>File</string>
     </property>
     <addaction name="actionOpenImage"/>
-    <addaction name="actionSaveSegmentation"/>
     <addaction name="actionExit"/>
    </widget>
    <widget class="QMenu" name="menuEdit">
@@ -480,6 +522,7 @@
     </property>
     <addaction name="action_Export_InputScreenshot"/>
     <addaction name="action_Export_ResultScreenshot"/>
+    <addaction name="actionSaveSegmentation"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
