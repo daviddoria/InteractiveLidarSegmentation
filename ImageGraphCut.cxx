@@ -38,6 +38,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <cmath>
 #include <iostream>
 #include <vector>
+#include <stdexcept>
 #include <numeric> // for accumulate()
 
 // VTK
@@ -147,7 +148,6 @@ void ImageGraphCut::SetImage(const ImageType* const image)
   this->ForegroundHistogram = NULL;
   this->BackgroundHistogram = NULL;
 
-  
 }
 
 ImageType::Pointer ImageGraphCut::GetMaskedOutput()
@@ -214,6 +214,7 @@ void ImageGraphCut::CutGraph()
 
 void ImageGraphCut::PerformSegmentation()
 {
+  std::cout << "PerformSegmentation() " << std::endl;
   // This function performs some initializations and then creates and cuts the graph
 
   // Ensure at least one pixel has been specified for both the foreground and background
@@ -835,12 +836,19 @@ float ImageGraphCut::ComputeAverageRandomDifferences(const unsigned int numberOf
   {
     // Choose a random pixel
     itk::Index<2> pixel;
-    pixel[0] = rand() % this->Image->GetLargestPossibleRegion().GetSize()[0] - 2;
-    pixel[1] = rand() % this->Image->GetLargestPossibleRegion().GetSize()[1] - 2;
+    pixel[0] = rand() % (this->Image->GetLargestPossibleRegion().GetSize()[0] - 2);
+    pixel[1] = rand() % (this->Image->GetLargestPossibleRegion().GetSize()[1] - 2);
 
     itk::Index<2> pixelB = pixel;
     pixelB[0] += 1;
-    
+
+    if(!this->Image->GetLargestPossibleRegion().IsInside(pixel) || !this->Image->GetLargestPossibleRegion().IsInside(pixelB))
+    {
+      std::cout << "Pixel: " << pixel << " PixelB: " << pixelB << std::endl;
+      std::cout << "Image: " << this->Image->GetLargestPossibleRegion() << std::endl;
+      throw std::runtime_error("Something is wrong, pixels are not inside image!");
+    }
+
     float difference = this->DifferenceFunction->ComputeDifference(this->Image->GetPixel(pixel), this->Image->GetPixel(pixelB));
 
     sum += difference;

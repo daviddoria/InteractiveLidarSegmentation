@@ -5,6 +5,7 @@
 #include "itkBinaryDilateImageFilter.h"
 #include "itkBresenhamLine.h"
 #include "itkImageRegionIterator.h"
+#include "itkMaskImageFilter.h"
 #include "itkRescaleIntensityImageFilter.h"
 #include "itkVectorMagnitudeImageFilter.h"
 #include "itkVectorIndexSelectionCastImageFilter.h"
@@ -14,6 +15,7 @@
 
 // STL
 #include <iostream>
+#include <stdexcept>
 
 namespace Helpers
 {
@@ -623,6 +625,48 @@ itk::Size<2> Get1x1Radius()
   itk::Size<2> radius;
   radius.Fill(1);
   return radius;
+}
+
+void ReplaceChannel(const itk::VectorImage<float, 2>* const image, const unsigned int channel,
+                    const itk::Image<float, 2>* const replacement, itk::VectorImage<float, 2>* const output)
+{
+  typedef itk::VectorImage<float, 2> ImageType;
+  if(image->GetLargestPossibleRegion() != replacement->GetLargestPossibleRegion())
+    {
+    throw std::runtime_error("Image and replacement channel are not the same size!");
+    }
+
+  DeepCopy(image, output);
+
+  itk::ImageRegionConstIterator<ImageType> iterator(image, image->GetLargestPossibleRegion());
+
+  while(!iterator.IsAtEnd())
+    {
+    ImageType::PixelType pixel = iterator.Get();
+    pixel[channel] = replacement->GetPixel(iterator.GetIndex());
+    output->SetPixel(iterator.GetIndex(), pixel);
+    ++iterator;
+    }
+}
+
+void MaskImage(const itk::VectorImage<float, 2>* const image, const MaskImageType* const mask, itk::VectorImage<float, 2>* const maskedImage)
+{
+  typedef itk::VectorImage<float, 2> ImageType;
+  
+  typedef itk::MaskImageFilter< ImageType, MaskImageType > MaskFilterType;
+  MaskFilterType::Pointer maskFilter = MaskFilterType::New();
+
+  typedef itk::VariableLengthVector<float> VariableVectorType;
+  VariableVectorType variableLengthVector;
+  variableLengthVector.SetSize(image->GetNumberOfComponentsPerPixel());
+  variableLengthVector.Fill(0);
+  maskFilter->SetOutsideValue(variableLengthVector);
+
+  maskFilter->SetInput1(image);
+  maskFilter->SetInput2(mask);
+  maskFilter->Update();
+
+  DeepCopy(maskFilter->GetOutput(), maskedImage);
 }
 
 } // end namespace

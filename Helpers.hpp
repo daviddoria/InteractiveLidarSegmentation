@@ -207,15 +207,55 @@ void ExtractChannel(const itk::VectorImage<TPixel, 2>* const image, const unsign
 template<typename TImage>
 void NormalizeImage(const TImage* const image, TImage* const outputImage)
 {
+  DeepCopy(image, outputImage);
+  
   for(unsigned int channel = 0; channel < image->GetNumberOfComponentsPerPixel(); ++channel)
   {
-    typename TImage::Pointer scalarImage = TImage::New();
+    std::cout << "Normalizing channel " << channel << std::endl;
+    typedef itk::Image<float, 2> ScalarImageType;
+    ScalarImageType::Pointer scalarImage = ScalarImageType::New();
     ExtractChannel(image, channel, scalarImage.GetPointer());
+    
     float mean = MeanValue(scalarImage.GetPointer());
+    std::cout << "Channel " << channel << " mean is " << mean << std::endl;
+    
+//     float variance = Variance(scalarImage.GetPointer());
+//     std::cout << "Channel " << channel << " variance is " << variance << std::endl;
+    float standardDeviation = StandardDeviation(scalarImage.GetPointer());
+    std::cout << "Channel " << channel << " standardDeviation is " << standardDeviation << std::endl;
+    
+    itk::ImageRegionIterator<ScalarImageType> imageIterator(scalarImage, scalarImage->GetLargestPossibleRegion());
+    while(!imageIterator.IsAtEnd())
+      {
+      float newValue = (imageIterator.Get() - mean) / standardDeviation;
+      imageIterator.Set(newValue);
+      ++imageIterator;
+      }
+    ReplaceChannel(outputImage, channel, scalarImage.GetPointer(), outputImage);
   }
-  
 }
 
+// template<typename TPixel>
+// void ReplaceChannel(const itk::VectorImage<TPixel, 2>* const image, const unsigned int channel,
+//                     const itk::Image<TPixel, 2>* const replacement, itk::VectorImage<TPixel, 2>* const output)
+// {
+//   if(image->GetLargestPossibleRegion() != replacement->GetLargestPossibleRegion())
+//     {
+//     throw std::runtime_error("Image and replacement channel are not the same size!");
+//     }
+// 
+//   DeepCopy(image, output);
+// 
+//   itk::ImageRegionConstIterator<itk::VectorImage<TPixel, 2> > iterator(image, image->GetLargestPossibleRegion());
+// 
+//   while(!iterator.IsAtEnd())
+//     {
+//     typename itk::VectorImage<TPixel, 2>::PixelType pixel = iterator.Get();
+//     pixel[channel] = replacement->GetPixel(iterator.GetIndex());
+//     output->SetPixel(iterator.GetIndex(), pixel);
+//     ++iterator;
+//     }
+// }
 
 template<typename TImage>
 float Variance(const TImage* const image)
@@ -228,10 +268,17 @@ float Variance(const TImage* const image)
   while(!imageIterator.IsAtEnd())
     {
     channelVarianceSummation += pow(imageIterator.Get() - average, 2);
+    ++imageIterator;
     }
   float variance = channelVarianceSummation / static_cast<float>(image->GetLargestPossibleRegion().GetNumberOfPixels() - 1); // This (N-1) term in the denominator is for the "unbiased" sample variance. This is what is used by Matlab, Wolfram alpha, etc.
 
   return variance;
+}
+
+template<typename TImage>
+float StandardDeviation(const TImage* const image)
+{
+  return sqrt(Variance(image));
 }
 
 template<typename TImage>

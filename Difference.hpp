@@ -1,6 +1,8 @@
 #ifndef Difference_HPP
 #define Difference_HPP
 
+#include <cmath>
+
 class Difference
 {
 public:
@@ -13,6 +15,7 @@ class DepthDifference : public Difference
   public:
   float ComputeDifference(const VectorType& a, const VectorType& b)
   {
+    //std::cout << "Difference between " << a << " and " << b << std::endl;
     return pow(a[3] - b[3], 2);
   }
 };

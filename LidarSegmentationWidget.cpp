@@ -296,8 +296,12 @@ void LidarSegmentationWidget::DisplaySegmentationResult()
 
   // Convert the image into a VTK image for display
   vtkSmartPointer<vtkImageData> VTKImage = vtkSmartPointer<vtkImageData>::New();
-  Helpers::ITKImageToVTKImage(this->GraphCut.GetMaskedOutput(), VTKImage);
-
+  //Helpers::ITKImageToVTKImage(this->GraphCut.GetMaskedOutput(), VTKImage);
+  
+  ImageType::Pointer maskedImage = ImageType::New();
+  Helpers::MaskImage(this->Image.GetPointer(), this->GraphCut.GetSegmentMask(), maskedImage.GetPointer());
+  Helpers::ITKImageToVTKImage(maskedImage.GetPointer(), VTKImage);
+  
   // Mask the VTK image with the segmentation result/mask
   vtkSmartPointer<vtkImageData> VTKMaskedImage = vtkSmartPointer<vtkImageData>::New();
   Helpers::MaskImage(VTKImage, VTKSegmentMask, VTKMaskedImage);
@@ -319,7 +323,7 @@ void LidarSegmentationWidget::DisplaySegmentationResult()
   //this->RightRenderer->AddViewProp(this->ResultImageSlice);
 
   
-  this->RightRenderer->ResetCamera();
+  //this->RightRenderer->ResetCamera();
   this->Refresh();
 }
 
@@ -948,8 +952,19 @@ void LidarSegmentationWidget::on_action_Selections_LoadSelectionsFromText_trigge
 
 void LidarSegmentationWidget::on_btnCut_clicked()
 {
+  // Normalize the image
+  ImageType::Pointer normalizedImage = ImageType::New();
+  normalizedImage->SetNumberOfComponentsPerPixel(this->Image->GetNumberOfComponentsPerPixel());
+  normalizedImage->SetRegions(this->Image->GetLargestPossibleRegion());
+  normalizedImage->Allocate();
 
-  this->GraphCut.SetImage(this->Image);
+  std::cout << "Normalizing image..." << std::endl;
+  Helpers::NormalizeImage(this->Image.GetPointer(), normalizedImage.GetPointer());
+
+  std::cout << "Normalized image has " << normalizedImage->GetNumberOfComponentsPerPixel() << " channels." << std::endl;
+  
+  //this->GraphCut.SetImage(this->Image);
+  this->GraphCut.SetImage(normalizedImage.GetPointer());
 
   this->GraphCut.Debug = this->chkDebug->isChecked();
   //this->GraphCut.SecondStep = this->chkSecondStep->isChecked();

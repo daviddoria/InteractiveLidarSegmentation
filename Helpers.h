@@ -36,6 +36,8 @@ itk::Index<2> FindClosestNonZeroPixel(const MaskImageType* const mask, itk::Inde
 
 void MaskImage(vtkImageData* const VTKImage, vtkImageData* const VTKSegmentMask, vtkImageData* const VTKMaskedImage);
 
+void MaskImage(const itk::VectorImage<float, 2>* const image, const MaskImageType* const mask, itk::VectorImage<float, 2>* const maskedImage);
+
 void CreateTransparentImage(vtkImageData* const VTKImage);
 
 void SetImageSize(vtkImageData* const input, vtkImageData* const output);
@@ -77,6 +79,10 @@ std::vector<itk::Index<2> > DilatePixelList(const std::vector<itk::Index<2> >& p
 
 /** Convert the points in a polydata to a list of indices. */
 std::vector<itk::Index<2> > PolyDataToPixelList(vtkPolyData* const polydata);
+
+void ReplaceChannel(const itk::VectorImage<float, 2>* const image, const unsigned int channel,
+                    const itk::Image<float, 2>* const replacement,
+                    itk::VectorImage<float, 2>* const output);
 
 /** Compute the median value of a vector. */
 template<typename T>
@@ -121,6 +127,19 @@ void NormalizeImage(const TImage* const image, TImage* const outputImage);
 
 template<typename TImage>
 float MeanValue(const TImage* const image);
+
+// template<typename TPixel>
+// void ReplaceChannel(const itk::VectorImage<TPixel, 2>* const image, const unsigned int channel,
+//                     typename itk::Image<TPixel, 2>* const replacement,
+//                     typename itk::VectorImage<TPixel, 2>* const output);
+
+
+
+template<typename TImage>
+float Variance(const TImage* const image);
+
+template<typename TImage>
+float StandardDeviation(const TImage* const image);
 
 }
 
