@@ -60,16 +60,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ImageGraphCut::ImageGraphCut()
 {
   this->DifferenceFunction = NULL;
-  this->AverageDepthDifference = 0.0;
-  this->MedianDepthDifference = 0.0;
-  this->MinDepthDifference = 0.0;
-  this->MaxDepthDifference = 0.0;
-  
-  this->AverageColorDifference = 0.0;
-  this->MedianColorDifference = 0.0;
-  this->MinColorDifference = 0.0;
-  this->MaxColorDifference = 0.0;
-  
+
   this->Debug = false;
   
   this->IncludeDepthInHistogram = false;
@@ -132,10 +123,10 @@ ImageType::Pointer ImageGraphCut::GetImage()
   return this->Image;
 }
 
-void ImageGraphCut::SetImage(ImageType::Pointer image)
+void ImageGraphCut::SetImage(const ImageType* const image)
 {
   this->Image = ImageType::New();
-  this->Image->Graft(image);
+  Helpers::DeepCopy(image, this->Image.GetPointer());
 
   // Setup the output (mask) image
   //this->SegmentMask = GrayscaleImageType::New();
@@ -412,7 +403,7 @@ void ImageGraphCut::CreateNWeights()
   
   // We use a neighborhood iterator here even though we are looking only at a single pixel index in all images on each iteration because we use the neighborhood to determine edge validity.
   std::vector<NeighborhoodIteratorType::OffsetType> neighbors;
-  NeighborhoodIteratorType iterator(Get1x1Radius(), this->Image, this->Image->GetLargestPossibleRegion());
+  NeighborhoodIteratorType iterator(Helpers::Get1x1Radius(), this->Image, this->Image->GetLargestPossibleRegion());
   ConstructNeighborhoodIterator(&iterator, neighbors);
 
   // Traverse the image adding an edge between:
@@ -716,12 +707,12 @@ std::vector<itk::Index<2> > ImageGraphCut::GetSources()
   return this->Sources;
 }
 
-void ImageGraphCut::SetLambda(float lambda)
+void ImageGraphCut::SetLambda(const float lambda)
 {
   this->Lambda = lambda;
 }
 
-void ImageGraphCut::SetNumberOfHistogramBins(int bins)
+void ImageGraphCut::SetNumberOfHistogramBins(const int bins)
 {
   this->NumberOfHistogramBins = bins;
 }
@@ -736,7 +727,7 @@ std::vector<itk::Index<2> > ImageGraphCut::GetSinks()
   return this->Sinks;
 }
 
-void ImageGraphCut::SetSources(vtkPolyData* sources)
+void ImageGraphCut::SetSources(vtkPolyData* const sources)
 {
   // Convert the vtkPolyData produced by the vtkImageTracerWidget to a list of pixel indices
 
@@ -759,7 +750,7 @@ void ImageGraphCut::SetSources(vtkPolyData* sources)
 
 }
 
-void ImageGraphCut::SetSinks(vtkPolyData* sinks)
+void ImageGraphCut::SetSinks(vtkPolyData* const sinks)
 {
   // Convert the vtkPolyData produced by the vtkImageTracerWidget to a list of pixel indices
 
@@ -782,22 +773,14 @@ void ImageGraphCut::SetSinks(vtkPolyData* sinks)
 
 }
 
-void ImageGraphCut::SetSources(std::vector<itk::Index<2> > sources)
+void ImageGraphCut::SetSources(const std::vector<itk::Index<2> >& sources)
 {
   this->Sources = sources;
 }
 
-void ImageGraphCut::SetSinks(std::vector<itk::Index<2> > sinks)
+void ImageGraphCut::SetSinks(const std::vector<itk::Index<2> >& sinks)
 {
   this->Sinks = sinks;
-}
-
-
-itk::Size<2> ImageGraphCut::Get1x1Radius()
-{
-  itk::Size<2> radius;
-  radius.Fill(1);
-  return radius;
 }
 
 void ImageGraphCut::ConstructNeighborhoodIterator(NeighborhoodIteratorType* iterator, std::vector<NeighborhoodIteratorType::OffsetType>& neighbors)

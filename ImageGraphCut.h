@@ -54,60 +54,45 @@ public:
   ImageGraphCut();
 
   Difference* DifferenceFunction;
-    
-  float AverageDepthDifference;
-  float MedianDepthDifference;
-  float MinDepthDifference;
-  float MaxDepthDifference;
-  
-  float AverageColorDifference;
-  float MedianColorDifference;
-  float MinColorDifference;
-  float MaxColorDifference;
-  
-  // This function is purely for debugging. It lets you visualize the edge weights that will be used in the graph cut computation.
-    
-  // Several initializations are done here
-  void SetImage(ImageType::Pointer image);
+
+  /** Several initializations are done here */
+  void SetImage(const ImageType* const image);
   ImageType::Pointer GetImage();
   
-  // Create and cut the graph (The main driver function)
+  /** Create and cut the graph (The main driver function) */
   void PerformSegmentation();
 
-  // Get the masked output image
+  /** Get the masked output image */
   ImageType::Pointer GetMaskedOutput();
 
-  // Return a list of the selected (via scribbling) pixels
+  /** Return a list of the selected (via scribbling) pixels */
   std::vector<itk::Index<2> > GetSources();
   std::vector<itk::Index<2> > GetSinks();
 
-  // Set the selected (via scribbling) pixels
-  void SetSources(vtkPolyData* sources);
-  void SetSinks(vtkPolyData* sinks);
+  /** Set the selected (via scribbling) pixels */
+  void SetSources(vtkPolyData* const sources);
+  void SetSinks(vtkPolyData* const sinks);
 
-  void SetSources(std::vector<itk::Index<2> > sources);
-  void SetSinks(std::vector<itk::Index<2> > sinks);
+  void SetSources(const std::vector<itk::Index<2> >& sources);
+  void SetSinks(const std::vector<itk::Index<2> >& sinks);
 
   void SetHardSources(const std::vector<itk::Index<2> >& pixels);
   void SetHardSinks(const std::vector<itk::Index<2> >& pixels);
   
-  // Get the output of the segmentation
+  /** Get the output of the segmentation */
   MaskImageType::Pointer GetSegmentMask();
 
-  // Set the weight between the regional and boundary terms
-  void SetLambda(float);
+  /** Set the weight between the regional and boundary terms */
+  void SetLambda(const float);
 
-  // Set the number of bins per dimension of the foreground and background histograms
-  void SetNumberOfHistogramBins(int);
+  /** Set the number of bins per dimension of the foreground and background histograms */
+  void SetNumberOfHistogramBins(const int);
 
   bool Debug;
 
   bool IncludeDepthInHistogram;
   bool IncludeColorInHistogram;
-  
-  bool IncludeDepthInDifference;
-  bool IncludeColorInDifference;
-  
+
   unsigned int NumberOfHistogramComponents;
   
   bool SecondStep;
@@ -120,58 +105,53 @@ protected:
   
   void CreateGraphNodes();
   
-  // A Kolmogorov graph object
+  /** A Kolmogorov graph object */
   GraphType* Graph;
 
-  // The output segmentation
+  /** The output segmentation */
   MaskImageType::Pointer SegmentMask;
 
-  // User specified foreground points
+  /** User specified foreground points */
   std::vector<itk::Index<2> > Sources;
 
-  // User specified background points
+  /** User specified background points */
   std::vector<itk::Index<2> > Sinks;
 
-  // The weighting between unary and binary terms
+  /** The weighting between unary and binary terms */
   float Lambda;
 
-  // The number of bins per dimension of the foreground and background histograms
+  /** The number of bins per dimension of the foreground and background histograms */
   int NumberOfHistogramBins;
 
-  // An image which keeps tracks of the mapping between pixel index and graph node id
+  /** An image which keeps tracks of the mapping between pixel index and graph node id */
   NodeImageType::Pointer NodeImage;
 
-  // Create the histograms from the users selections
+  /** Create the histograms from the users selections */
   void CreateHistograms();
   const HistogramType* CreateHistogram(std::vector<itk::Index<2> > pixels, std::vector<unsigned int> channelsToUse);
   //void CreateHistogram(std::vector<itk::Index<2> > pixels, std::vector<unsigned int> channelsToUse, const HistogramType*);
 
-  // Create a Kolmogorov graph structure from the image and selections
+  /** Create a Kolmogorov graph structure from the image and selections */
   void CreateGraphManually();
   void CreateGraph();
   void CreateNWeights();
   void CreateTWeights();
   
-  // Perform the s-t min cut
+  /** Perform the s-t min cut */
   void CutGraph();
 
-  // Several times throughout the algorithm we will need to traverse the image, looking exactly once at each edge. This iterator
-  // creation is lengthy, so we do it once in this function and call it from everywhere we need it.
+  /** Several times throughout the algorithm we will need to traverse the image, looking exactly once at each edge. This iterator
+   * creation is lengthy, so we do it once in this function and call it from everywhere we need it. */
   void ConstructNeighborhoodIterator(NeighborhoodIteratorType* iterator, std::vector<NeighborhoodIteratorType::OffsetType>& neighbors);
-  
-  // Member variables
 
-  // The histograms of the source and sink pixels
+  /** The histograms of the source and sink pixels */
   const HistogramType* ForegroundHistogram;
   const HistogramType* BackgroundHistogram;
 
-  // The image to be segmented
+  /** The image to be segmented */
   ImageType::Pointer Image;
-
-  // We need a 1x1 radius quite often, so we can create it in a single line with this function
-  itk::Size<2> Get1x1Radius();
   
-  // This function performs the negative exponential weighting
+  /** This function performs the negative exponential weighting */
   float ComputeNEdgeWeight(const float difference);
   
   float ComputeTEdgeWeight(const float histogramValue);

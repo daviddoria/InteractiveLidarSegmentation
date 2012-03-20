@@ -948,15 +948,15 @@ void LidarSegmentationWidget::on_action_Selections_LoadSelectionsFromText_trigge
 
 void LidarSegmentationWidget::on_btnCut_clicked()
 {
+
+  this->GraphCut.SetImage(this->Image);
+
   this->GraphCut.Debug = this->chkDebug->isChecked();
   //this->GraphCut.SecondStep = this->chkSecondStep->isChecked();
   
   this->GraphCut.IncludeDepthInHistogram = this->chkDepthHistogram->isChecked();
   this->GraphCut.IncludeColorInHistogram = this->chkColorHistogram->isChecked();
-  
-  this->GraphCut.IncludeDepthInDifference = this->chkDepthDifference->isChecked();
-  this->GraphCut.IncludeColorInDifference= this->chkColorDifference->isChecked();
- 
+
   this->GraphCut.BackgroundThreshold = this->txtBackgroundThreshold->text().toDouble();
   
   if(this->GraphCut.DifferenceFunction)
@@ -967,17 +967,25 @@ void LidarSegmentationWidget::on_btnCut_clicked()
   // Setup the Difference object
   if(this->chkDepthDifference->isChecked() && !this->chkColorDifference->isChecked())
     {
+    std::cout << "Using depth-only N-weights." << std::endl;
     this->GraphCut.DifferenceFunction = new DepthDifference;
-    //this->GraphCut.DifferenceFunction = new DifferenceDepthDataNormalized;
     }
   else if(!this->chkDepthDifference->isChecked() && this->chkColorDifference->isChecked())
     {
+    std::cout << "Using color-only N-weights." << std::endl;
     this->GraphCut.DifferenceFunction = new ColorDifference;
-    //this->GraphCut.DifferenceFunction = new DifferenceColorDataNormalized;
     }
   else if(this->chkDepthDifference->isChecked() && this->chkColorDifference->isChecked())
     {
+    std::cout << "Using depth+color N-weights." << std::endl;
     std::vector<float> weights(4,1.0f);
+    weights[0] = spinRWeight->value();
+    weights[1] = spinGWeight->value();
+    weights[2] = spinBWeight->value();
+    weights[3] = spinDWeight->value();
+
+    std::cout << "Weights: " << weights[0] << " " << weights[1] << " " << weights[2] << " " << weights[3] << std::endl;
+
     this->GraphCut.DifferenceFunction = new WeightedDifference(weights);
     }
   else
@@ -1082,8 +1090,6 @@ void LidarSegmentationWidget::OpenFile(const std::string& fileName)
   // Store the region so we can access it without needing to care which image it comes from
   this->ImageRegion = reader->GetOutput()->GetLargestPossibleRegion();
 
-  this->GraphCut.SetImage(reader->GetOutput());
-  
   // Clear everything
   //this->LeftRenderer->RemoveAllViewProps();
   //this->RightRenderer->RemoveAllViewProps();

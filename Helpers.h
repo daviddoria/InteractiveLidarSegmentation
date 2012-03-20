@@ -18,6 +18,9 @@ class vtkPolyData;
 namespace Helpers
 {
 
+/** We need a 1x1 radius quite often, so we can create it in a single line with this function */
+itk::Size<2> Get1x1Radius();
+
 std::vector<float> ComputeMinOfAllChannels(const ImageType* const image);
 std::vector<float> ComputeMaxOfAllChannels(const ImageType* const image);
 
@@ -112,6 +115,13 @@ void ExtractChannel(const itk::VectorImage<TPixel, 2>* const image, const unsign
 
 template<typename TImage>
 void ITKScalarImageToVTKImage(const TImage* const image, vtkImageData* const outputImage);
+
+template<typename TImage>
+void NormalizeImage(const TImage* const image, TImage* const outputImage);
+
+template<typename TImage>
+float MeanValue(const TImage* const image);
+
 }
 
 #include "Helpers.hpp"

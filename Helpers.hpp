@@ -204,4 +204,49 @@ void ExtractChannel(const itk::VectorImage<TPixel, 2>* const image, const unsign
   DeepCopy(indexSelectionFilter->GetOutput(), output);
 }
 
+template<typename TImage>
+void NormalizeImage(const TImage* const image, TImage* const outputImage)
+{
+  for(unsigned int channel = 0; channel < image->GetNumberOfComponentsPerPixel(); ++channel)
+  {
+    typename TImage::Pointer scalarImage = TImage::New();
+    ExtractChannel(image, channel, scalarImage.GetPointer());
+    float mean = MeanValue(scalarImage.GetPointer());
+  }
+  
+}
+
+
+template<typename TImage>
+float Variance(const TImage* const image)
+{
+  float average = MeanValue(image);
+
+  float channelVarianceSummation = 0.0f;
+
+  itk::ImageRegionConstIterator<TImage> imageIterator(image, image->GetLargestPossibleRegion());
+  while(!imageIterator.IsAtEnd())
+    {
+    channelVarianceSummation += pow(imageIterator.Get() - average, 2);
+    }
+  float variance = channelVarianceSummation / static_cast<float>(image->GetLargestPossibleRegion().GetNumberOfPixels() - 1); // This (N-1) term in the denominator is for the "unbiased" sample variance. This is what is used by Matlab, Wolfram alpha, etc.
+
+  return variance;
+}
+
+template<typename TImage>
+float MeanValue(const TImage* const image)
+{
+  itk::ImageRegionConstIterator<TImage> imageIterator(image, image->GetLargestPossibleRegion());
+
+  float sum = 0.0f;
+  while(!imageIterator.IsAtEnd())
+    {
+    sum += imageIterator.Get();
+
+    ++imageIterator;
+    }
+  return sum / static_cast<float>(image->GetLargestPossibleRegion().GetNumberOfPixels());
+}
+
 } // end namespace

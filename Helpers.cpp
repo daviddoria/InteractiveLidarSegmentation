@@ -618,4 +618,11 @@ std::vector<float> ComputeMaxOfAllChannels(const ImageType* const image)
 }
 
 
+itk::Size<2> Get1x1Radius()
+{
+  itk::Size<2> radius;
+  radius.Fill(1);
+  return radius;
+}
+
 } // end namespace

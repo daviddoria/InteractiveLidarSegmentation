@@ -45,7 +45,7 @@ class WeightedDifference : public Difference
     float sum = 0.0f;
     for(unsigned int component = 0; component < a.GetSize(); ++component)
       {
-      sum += pow(a[component] - b[component], 2);
+      sum += Weights[component] * pow(a[component] - b[component], 2);
       }
     return sum;
   }
