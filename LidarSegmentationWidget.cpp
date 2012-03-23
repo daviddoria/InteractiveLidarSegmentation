@@ -669,7 +669,7 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
   structuringElement.SetRadius(1);
   structuringElement.CreateStructuringElement();
 
-  typedef itk::BinaryDilateImageFilter <MaskImageType, MaskImageType, StructuringElementType> BinaryDilateImageFilterType;
+  typedef itk::BinaryDilateImageFilter<MaskImageType, MaskImageType, StructuringElementType> BinaryDilateImageFilterType;
 
   BinaryDilateImageFilterType::Pointer dilateFilter = BinaryDilateImageFilterType::New();
   dilateFilter->SetInput(sourcesImage);
@@ -685,88 +685,14 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
   xorFilter->SetInput2(sourcesImage);
   xorFilter->Update();
 
-  Helpers::WriteImage<MaskImageType>(xorFilter->GetOutput(), "boundaryOfSegmentation.png");
-  
-  /*
-  // Dilate the mask
-  std::cout << "Dilating mask..." << std::endl;
-  typedef itk::BinaryBallStructuringElement<MaskImageType::PixelType,2> StructuringElementType;
-  StructuringElementType structuringElementBig;
-  structuringElementBig.SetRadius(7);
-  structuringElementBig.CreateStructuringElement();
-
-  typedef itk::BinaryDilateImageFilter <MaskImageType, MaskImageType, StructuringElementType> BinaryDilateImageFilterType;
-
-  BinaryDilateImageFilterType::Pointer dilateFilterBig = BinaryDilateImageFilterType::New();
-  dilateFilterBig->SetInput(sourcesImage);
-  dilateFilterBig->SetKernel(structuringElementBig);
-  dilateFilterBig->Update();
-
-  StructuringElementType structuringElementSmall;
-  structuringElementSmall.SetRadius(6);
-  structuringElementSmall.CreateStructuringElement();
-  
-  BinaryDilateImageFilterType::Pointer dilateFilterSmall = BinaryDilateImageFilterType::New();
-  dilateFilterSmall->SetInput(sourcesImage);
-  dilateFilterSmall->SetKernel(structuringElementSmall);
-  dilateFilterSmall->Update();
-
-  //Helpers::WriteImage<MaskImageType>(dilateFilter->GetOutput(), "dilated.png");
-
-  // Binary XOR the images to get the difference image
-  std::cout << "XORing masks..." << std::endl;
-  typedef itk::XorImageFilter <MaskImageType> XorImageFilterType;
-
-  XorImageFilterType::Pointer xorFilter = XorImageFilterType::New();
-  xorFilter->SetInput1(dilateFilterBig->GetOutput());
-  xorFilter->SetInput2(dilateFilterSmall->GetOutput());
-  xorFilter->Update();
-
-  Helpers::WriteImage<MaskImageType>(xorFilter->GetOutput(), "boundaryOfSegmentation.png");
-  */
+  Helpers::WriteImage(xorFilter->GetOutput(), "boundaryOfSegmentation.png");
   
   // Iterate over the border pixels. If the closest pixel in the original segmentation has
   // a depth greater than a threshold, mark it as a new sink. Else, do not.
   std::cout << "Determining which boundary pixels should be declared background..." << std::endl;
   //std::cout << "There should be " << Helpers::CountNonZeroPixels(xorFilter->GetOutput())
   //          << " considered." << std::endl;
-  
-  /*
-  std::vector<itk::Index<2> > newSinks;
-  itk::ImageRegionIterator<MaskImageType> imageIterator(xorFilter->GetOutput(),
-                                     xorFilter->GetOutput()->GetLargestPossibleRegion());
-
-  unsigned int consideredCounter = 0;
-  unsigned int backgroundCounter = 0;
-  while(!imageIterator.IsAtEnd())
-    {
-    if(imageIterator.Get()) // If the current pixel is in question
-      {
-      consideredCounter++;
-      //std::cout << "Considering pixel " << consideredCounter << " (index "
-                  << imageIterator.GetIndex() << ")" << std::endl;
-      ImageType::PixelType currentPixel = this->Image->GetPixel(imageIterator.GetIndex());
-      itk::Index<2> closestPixelIndex = Helpers::FindClosestNonZeroPixel(sourcesImage, imageIterator.GetIndex());
-      //std::cout << "Closest pixel is " << closestPixelIndex << std::endl;
-      ImageType::PixelType closestPixel = this->Image->GetPixel(closestPixelIndex);
-      //std::cout << "Current pixel depth value is " << currentPixel[3] << std::endl;
-      //std::cout << "Closest pixel depth value is " << closestPixel[3] << std::endl;
-      float difference = fabs(currentPixel[3]-closestPixel[3]);
-      if(difference > this->txtBackgroundThreshold->text().toFloat())
-        {
-        //std::cout << "Difference was " << difference << " so this is a sink pixel." << std::endl;
-        newSinks.push_back(imageIterator.GetIndex());
-        backgroundCounter++;
-        }
-      else
-        {
-        //std::cout << "Difference was " << difference << " so this is NOT a sink pixel." << std::endl;
-        }
-      }
-
-    ++imageIterator;
-    }
-  */
+ 
   std::vector<itk::Index<2> > newSinks;
   itk::ImageRegionIterator<MaskImageType> imageIterator(xorFilter->GetOutput(),
                                                         xorFilter->GetOutput()->GetLargestPossibleRegion());
@@ -778,6 +704,8 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
   indexSelectionFilter->Update();
   
   FloatScalarImageType::Pointer depthImage = indexSelectionFilter->GetOutput();
+
+  //float sameObjectThreshold = 0.1f;
   
   std::vector<itk::Index<2> > consideredPixels;
   while(!imageIterator.IsAtEnd())
@@ -816,19 +744,20 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
   
       float difference = statisticsImageFilter->GetMaximum() - statisticsImageFilter->GetMinimum();
       if(this->Debug)
-	{
-	std::cout << "Max: " << statisticsImageFilter->GetMaximum() 
-		  << " min: " <<  statisticsImageFilter->GetMinimum() << std::endl;
-	}
-      
+        {
+        std::cout << "Max: " << statisticsImageFilter->GetMaximum()
+                  << " min: " <<  statisticsImageFilter->GetMinimum() << std::endl;
+        }
+
+      //if(difference > this->txtBackgroundThreshold->text().toFloat())
       if(difference > this->txtBackgroundThreshold->text().toFloat())
         {
-        //std::cout << "Difference was " << difference << " so this is a sink pixel." << std::endl;
+        std::cout << "Difference was " << difference << " so this is a sink pixel." << std::endl;
         newSinks.push_back(imageIterator.GetIndex());
         }
       else
         {
-        //std::cout << "Difference was " << difference << " so this is NOT a sink pixel." << std::endl;
+        std::cout << "Difference was " << difference << " so this is NOT a sink pixel." << std::endl;
         }
       }
 
