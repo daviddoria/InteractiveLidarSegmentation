@@ -669,4 +669,24 @@ void MaskImage(const itk::VectorImage<float, 2>* const image, const MaskImageTyp
   DeepCopy(maskFilter->GetOutput(), maskedImage);
 }
 
+itk::ImageRegion<2> GetRegionInRadiusAroundPixel(const itk::Index<2>& pixel, const unsigned int radius)
+{
+  // This function returns a Region with the specified 'radius' centered at 'pixel'. By the definition of the radius of a square patch, the output region is (radius*2 + 1)x(radius*2 + 1).
+  // Note: This region is not necessarily entirely inside the image!
+
+  // The "index" is the lower left corner, so we need to subtract the radius from the center to obtain it
+  itk::Index<2> lowerLeft;
+  lowerLeft[0] = pixel[0] - radius;
+  lowerLeft[1] = pixel[1] - radius;
+
+  itk::ImageRegion<2> region;
+  region.SetIndex(lowerLeft);
+  itk::Size<2> size;
+  size[0] = radius*2 + 1;
+  size[1] = radius*2 + 1;
+  region.SetSize(size);
+
+  return region;
+}
+
 } // end namespace

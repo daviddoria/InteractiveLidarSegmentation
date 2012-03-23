@@ -21,6 +21,8 @@ namespace Helpers
 /** We need a 1x1 radius quite often, so we can create it in a single line with this function */
 itk::Size<2> Get1x1Radius();
 
+itk::ImageRegion<2> GetRegionInRadiusAroundPixel(const itk::Index<2>& pixel, const unsigned int radius);
+
 std::vector<float> ComputeMinOfAllChannels(const ImageType* const image);
 std::vector<float> ComputeMaxOfAllChannels(const ImageType* const image);
 

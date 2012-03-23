@@ -661,6 +661,7 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
   MaskImageType::Pointer sourcesImage = MaskImageType::New();
   sourcesImage->SetRegions(this->ImageRegion);
   Helpers::IndicesToBinaryImage(this->Sources, sourcesImage);
+  Helpers::WriteImage(sourcesImage.GetPointer(), "sourcesImage.png");
   
   // Dilate the mask
   std::cout << "Dilating mask..." << std::endl;
@@ -692,10 +693,8 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
   std::cout << "Determining which boundary pixels should be declared background..." << std::endl;
   //std::cout << "There should be " << Helpers::CountNonZeroPixels(xorFilter->GetOutput())
   //          << " considered." << std::endl;
- 
-  std::vector<itk::Index<2> > newSinks;
-  itk::ImageRegionIterator<MaskImageType> imageIterator(xorFilter->GetOutput(),
-                                                        xorFilter->GetOutput()->GetLargestPossibleRegion());
+  typedef std::vector<itk::Index<2> > VectorOfPixelsType;
+  VectorOfPixelsType newSinks;
 
   typedef itk::VectorIndexSelectionCastImageFilter<ImageType, FloatScalarImageType> IndexSelectionType;
   IndexSelectionType::Pointer indexSelectionFilter = IndexSelectionType::New();
@@ -706,62 +705,65 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
   FloatScalarImageType::Pointer depthImage = indexSelectionFilter->GetOutput();
 
   //float sameObjectThreshold = 0.1f;
+
   
-  std::vector<itk::Index<2> > consideredPixels;
+  VectorOfPixelsType consideredPixels;
+
+  itk::ImageRegionIterator<MaskImageType> imageIterator(xorFilter->GetOutput(),
+                                                        xorFilter->GetOutput()->GetLargestPossibleRegion());
   while(!imageIterator.IsAtEnd())
     {
     if(imageIterator.Get()) // If the current pixel is in question
       {
       consideredPixels.push_back(imageIterator.GetIndex());
-      //std::cout << "Considering pixel " << consideredCounter << " (index "
-      //          << imageIterator.GetIndex() << ")" << std::endl;
-      ImageType::PixelType currentPixel = this->Image->GetPixel(imageIterator.GetIndex());
-      
-      typedef itk::RegionOfInterestImageFilter< FloatScalarImageType, FloatScalarImageType >
-              RegionOfInterestImageFilterType;
-      RegionOfInterestImageFilterType::Pointer regionOfInterestImageFilter = RegionOfInterestImageFilterType::New();
-      //unsigned int radius = 2;
-      unsigned int radius = this->txtBackgroundCheckRadius->text().toUInt();
-      ImageType::IndexType start;
-      start[0] = imageIterator.GetIndex()[0] - radius;
-      start[1] = imageIterator.GetIndex()[1] - radius;
-    
-      ImageType::SizeType size;
-      size.Fill(radius*2 + 1);
-    
-      ImageType::RegionType desiredRegion(start, size);
-      //std::cout << "Checking pixel: " << imageIterator.GetIndex()
-      //          << " with region: " << desiredRegion << std::endl;
-      
-      regionOfInterestImageFilter->SetRegionOfInterest(desiredRegion);
-      regionOfInterestImageFilter->SetInput(depthImage);
-      regionOfInterestImageFilter->Update();
-      
-      typedef itk::StatisticsImageFilter<FloatScalarImageType> StatisticsImageFilterType;
-      StatisticsImageFilterType::Pointer statisticsImageFilter = StatisticsImageFilterType::New ();
-      statisticsImageFilter->SetInput(regionOfInterestImageFilter->GetOutput());
-      statisticsImageFilter->Update();
-  
-      float difference = statisticsImageFilter->GetMaximum() - statisticsImageFilter->GetMinimum();
-      if(this->Debug)
-        {
-        std::cout << "Max: " << statisticsImageFilter->GetMaximum()
-                  << " min: " <<  statisticsImageFilter->GetMinimum() << std::endl;
-        }
+      }
+    ++imageIterator;
+    }
 
-      //if(difference > this->txtBackgroundThreshold->text().toFloat())
-      if(difference > this->txtBackgroundThreshold->text().toFloat())
+  std::cout << "There are " << consideredPixels.size() << " potential new sink pixels." << std::endl;
+  
+  for(VectorOfPixelsType::const_iterator iter = consideredPixels.begin(); iter != consideredPixels.end(); ++iter)
+    {
+    //std::cout << "Considering pixel " << consideredCounter << " (index "
+    //          << imageIterator.GetIndex() << ")" << std::endl;
+    ImageType::PixelType currentPixel = this->Image->GetPixel(*iter);
+
+    unsigned int radius = this->txtBackgroundCheckRadius->text().toUInt();
+    ImageType::RegionType desiredRegion = Helpers::GetRegionInRadiusAroundPixel(*iter, radius);
+    //std::cout << "desiredRegion: " << desiredRegion << std::endl;
+    
+    itk::ImageRegionIterator<MaskImageType> sourcesImageIterator(sourcesImage, desiredRegion);
+    
+    std::vector<float> nonForegroundDepths;
+    std::vector<float> foregroundDepths;
+    while(!sourcesImageIterator.IsAtEnd())
+      {
+      if(sourcesImageIterator.Get())
         {
-        std::cout << "Difference was " << difference << " so this is a sink pixel." << std::endl;
-        newSinks.push_back(imageIterator.GetIndex());
+        foregroundDepths.push_back(depthImage->GetPixel(sourcesImageIterator.GetIndex()));
         }
       else
         {
-        std::cout << "Difference was " << difference << " so this is NOT a sink pixel." << std::endl;
+        nonForegroundDepths.push_back(depthImage->GetPixel(sourcesImageIterator.GetIndex()));
         }
+      ++sourcesImageIterator;
       }
 
-    ++imageIterator;
+    float nonForegroundMedian = Helpers::VectorMedian(nonForegroundDepths);
+    float foregroundMedian = Helpers::VectorMedian(foregroundDepths);
+
+    float difference = fabs(foregroundMedian - nonForegroundMedian);
+
+    //if(difference > this->txtBackgroundThreshold->text().toFloat())
+    if(difference > this->txtBackgroundThreshold->text().toFloat())
+      {
+      std::cout << "Difference was " << difference << " so this is a sink pixel." << std::endl;
+      newSinks.push_back(*iter);
+      }
+    else
+      {
+      std::cout << "Difference was " << difference << " so this is NOT a sink pixel." << std::endl;
+      }
     }
   
   unsigned char blue[3] = {0, 0, 255};
@@ -776,7 +778,7 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
   newSinksImage->Allocate();
 
   Helpers::IndicesToBinaryImage(newSinks, newSinksImage);
-  Helpers::WriteImage<MaskImageType>(newSinksImage, "newSinks.png");
+  Helpers::WriteImage(newSinksImage.GetPointer(), "newSinks.png");
 
   //std::cout << "Out of " << consideredCounter << " pixels considered, "
   //          << backgroundCounter << " were declared background." << std::endl;

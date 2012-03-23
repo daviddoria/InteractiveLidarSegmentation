@@ -2,8 +2,9 @@
 
 // STL
 #include <algorithm>
-#include <vector>
+#include <fstream>
 #include <numeric> // for accumulate()
+#include <vector>
 
 // ITK
 #include "itkImageFileWriter.h"
@@ -76,15 +77,15 @@ void WriteVectorToFile(const std::vector<T> &v, const std::string& filename)
 }
 
 template<typename T>
-T VectorMedian(const std::vector<T> &v)
+T VectorMedian(const std::vector<T>& input)
 {
+  // Can't operate on a const vector directly because nth_element sorts the vector internally
+  typename std::vector<T> v = input;
   
   int n = v.size() / 2;
   std::nth_element(v.begin(), v.begin()+n, v.end());
   return v[n];
-  
 
-  
 //   std::sort(v.begin(), v.end());
 //   int n = v.size() / 2;
 //   return v[n];
