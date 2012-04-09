@@ -92,6 +92,8 @@ public slots:
   void on_btnShowStrokesLeft_clicked();
   void on_btnHideStrokesLeft_clicked();
 
+  void on_btnSegmentLiDAR_clicked();
+  
   void on_btnShowStrokesRight_clicked();
   void on_btnHideStrokesRight_clicked();
   

@@ -749,12 +749,15 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
       ++sourcesImageIterator;
       }
 
+    if(nonForegroundDepths.size() < 1)
+    {
+    }
+    
     float nonForegroundMedian = Helpers::VectorMedian(nonForegroundDepths);
     float foregroundMedian = Helpers::VectorMedian(foregroundDepths);
 
     float difference = fabs(foregroundMedian - nonForegroundMedian);
 
-    //if(difference > this->txtBackgroundThreshold->text().toFloat())
     if(difference > this->txtBackgroundThreshold->text().toFloat())
       {
       std::cout << "Difference was " << difference << " so this is a sink pixel." << std::endl;
@@ -764,7 +767,7 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
       {
       std::cout << "Difference was " << difference << " so this is NOT a sink pixel." << std::endl;
       }
-    }
+    } // end loop over considered pixels
   
   unsigned char blue[3] = {0, 0, 255};
   
@@ -880,6 +883,68 @@ void LidarSegmentationWidget::on_action_Selections_LoadSelectionsFromText_trigge
     }
 }
 
+void LidarSegmentationWidget::on_btnSegmentLiDAR_clicked()
+{
+  // Normalize the image
+  ImageType::Pointer normalizedImage = ImageType::New();
+  normalizedImage->SetNumberOfComponentsPerPixel(this->Image->GetNumberOfComponentsPerPixel());
+  normalizedImage->SetRegions(this->Image->GetLargestPossibleRegion());
+  normalizedImage->Allocate();
+
+  std::cout << "Normalizing image..." << std::endl;
+  Helpers::NormalizeImage(this->Image.GetPointer(), normalizedImage.GetPointer());
+
+  std::cout << "Normalized image has " << normalizedImage->GetNumberOfComponentsPerPixel() << " channels." << std::endl;
+
+  //this->GraphCut.SetImage(this->Image);
+  this->GraphCut.SetImage(normalizedImage.GetPointer());
+
+  this->GraphCut.IncludeDepthInHistogram = true;
+  this->GraphCut.IncludeColorInHistogram = true;
+
+  this->GraphCut.BackgroundThreshold = 0.4;
+
+  if(this->GraphCut.DifferenceFunction)
+    {
+    delete this->GraphCut.DifferenceFunction;
+    }
+
+  std::cout << "Using depth-only N-weights." << std::endl;
+  this->GraphCut.DifferenceFunction = new DepthDifference;
+
+  // Get the number of bins from the slider
+  this->GraphCut.SetNumberOfHistogramBins(20);
+
+  // Setup the graph cut from the GUI and the scribble selection
+  this->GraphCut.SetLambda(.0025);
+  this->GraphCut.SetSources(this->Sources);
+  this->GraphCut.SetSinks(this->Sinks);
+
+  // Setup and start the actual cut computation in a different thread
+  QFuture<void> future = QtConcurrent::run(this->GraphCut, &ImageGraphCut::PerformSegmentation);
+  this->FutureWatcher.setFuture(future);
+
+  this->ProgressDialog->exec();
+
+  // Step 2 - color + depth
+
+  on_btnReseedForeground_clicked();
+  on_btnGenerateNeighborSinks_clicked();
+  
+  std::cout << "Using depth+color N-weights." << std::endl;
+  std::vector<float> weights(4,1.0f);
+//   weights[0] = 1.0f;
+//   weights[1] = 1.0f;
+//   weights[2] = 1.0f;
+//   weights[3] = 1.0f;
+
+  this->GraphCut.DifferenceFunction = new WeightedDifference(weights);
+
+  QFuture<void> futureStep2 = QtConcurrent::run(this->GraphCut, &ImageGraphCut::PerformSegmentation);
+  this->FutureWatcher.setFuture(futureStep2);
+  this->ProgressDialog->exec();
+
+}
 
 void LidarSegmentationWidget::on_btnCut_clicked()
 {

@@ -7,95 +7,241 @@
     <x>0</x>
     <y>0</y>
     <width>1232</width>
-    <height>900</height>
+    <height>965</height>
    </rect>
-  </property>
-  <property name="minimumSize">
-   <size>
-    <width>900</width>
-    <height>900</height>
-   </size>
   </property>
   <property name="windowTitle">
    <string>Interactive LiDAR Segmentation</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <layout class="QGridLayout" name="gridLayout_2">
-    <item row="0" column="0">
-     <layout class="QVBoxLayout" name="verticalLayout_7">
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
+   </property>
+   <layout class="QVBoxLayout" name="verticalLayout_7" stretch="5,0,0,0,0">
+    <item>
+     <layout class="QHBoxLayout" name="horizontalLayout_9">
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_9">
+       <layout class="QVBoxLayout" name="verticalLayout_8" stretch="1,15">
         <item>
-         <layout class="QVBoxLayout" name="verticalLayout_8" stretch="1,10">
-          <item>
-           <widget class="QLabel" name="label_9">
-            <property name="text">
-             <string>Input</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QVTKWidget" name="qvtkWidgetLeft"/>
-          </item>
-         </layout>
+         <widget class="QLabel" name="label_9">
+          <property name="text">
+           <string>Input</string>
+          </property>
+         </widget>
         </item>
         <item>
-         <layout class="QVBoxLayout" name="verticalLayout_9" stretch="1,10">
-          <item>
-           <widget class="QLabel" name="label_10">
-            <property name="text">
-             <string>Result</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QVTKWidget" name="qvtkWidgetRight"/>
-          </item>
-         </layout>
+         <widget class="QVTKWidget" name="qvtkWidgetLeft"/>
         </item>
        </layout>
       </item>
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_2">
+       <layout class="QVBoxLayout" name="verticalLayout_9" stretch="1,15">
         <item>
-         <layout class="QVBoxLayout" name="verticalLayout_5">
+         <widget class="QLabel" name="label_10">
+          <property name="text">
+           <string>Result</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QVTKWidget" name="qvtkWidgetRight"/>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </item>
+    <item>
+     <widget class="QRadioButton" name="radForeground">
+      <property name="text">
+       <string>Foreground</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QRadioButton" name="radBackground">
+      <property name="text">
+       <string>Background</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QPushButton" name="btnSegmentLiDAR">
+      <property name="text">
+       <string>Segment</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QTabWidget" name="tabWidget">
+      <property name="maximumSize">
+       <size>
+        <width>1</width>
+        <height>1</height>
+       </size>
+      </property>
+      <property name="currentIndex">
+       <number>2</number>
+      </property>
+      <widget class="QWidget" name="tab">
+       <attribute name="title">
+        <string>Basic</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_10">
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout_2">
           <item>
-           <widget class="QRadioButton" name="radForeground">
+           <layout class="QVBoxLayout" name="verticalLayout_5">
+            <item>
+             <widget class="QPushButton" name="btnClearSelections">
+              <property name="text">
+               <string>Clear All</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnClearForeground">
+              <property name="text">
+               <string>Clear Foreground</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnClearBackground">
+              <property name="text">
+               <string>Clear Background</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QVBoxLayout" name="verticalLayout_2">
+          <item>
+           <widget class="QLabel" name="label_12">
             <property name="text">
-             <string>Foreground</string>
+             <string>N-Weight Difference function</string>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QRadioButton" name="radBackground">
+           <widget class="QCheckBox" name="chkColorDifference">
             <property name="text">
-             <string>Background</string>
+             <string>Color</string>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="btnClearSelections">
+           <widget class="QCheckBox" name="chkDepthDifference">
             <property name="text">
-             <string>Clear All</string>
+             <string>Depth</string>
             </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="btnClearForeground">
-            <property name="text">
-             <string>Clear Foreground</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="btnClearBackground">
-            <property name="text">
-             <string>Clear Background</string>
+            <property name="checked">
+             <bool>true</bool>
             </property>
            </widget>
           </item>
          </layout>
         </item>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout">
+          <item>
+           <layout class="QVBoxLayout" name="verticalLayout">
+            <item>
+             <widget class="QPushButton" name="btnCut">
+              <property name="text">
+               <string>Cut Graph</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="chkDebug">
+              <property name="text">
+               <string>Debug Outputs</string>
+              </property>
+              <property name="checked">
+               <bool>false</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout_4">
+          <item>
+           <widget class="QLabel" name="label_15">
+            <property name="text">
+             <string>R</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QDoubleSpinBox" name="spinRWeight">
+            <property name="value">
+             <double>1.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="label_17">
+            <property name="text">
+             <string>G</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QDoubleSpinBox" name="spinGWeight">
+            <property name="value">
+             <double>1.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="label_18">
+            <property name="text">
+             <string>B</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QDoubleSpinBox" name="spinBWeight">
+            <property name="value">
+             <double>1.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="label_16">
+            <property name="text">
+             <string>D</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QDoubleSpinBox" name="spinDWeight">
+            <property name="maximum">
+             <double>9999.989999999999782</double>
+            </property>
+            <property name="value">
+             <double>1.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_2">
+       <attribute name="title">
+        <string>Advanced</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_3">
         <item>
          <layout class="QVBoxLayout" name="verticalLayout_4">
           <item>
@@ -240,7 +386,38 @@
          </layout>
         </item>
         <item>
-         <layout class="QVBoxLayout" name="verticalLayout_3">
+         <layout class="QVBoxLayout" name="verticalLayout_6">
+          <item>
+           <widget class="QLabel" name="label_14">
+            <property name="text">
+             <string>T-Weights</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="chkColorHistogram">
+            <property name="text">
+             <string>Color</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="chkDepthHistogram">
+            <property name="text">
+             <string>Depth</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QVBoxLayout" name="verticalLayout_11">
           <item>
            <layout class="QHBoxLayout" name="horizontalLayout_10">
             <item>
@@ -322,155 +499,36 @@
          </layout>
         </item>
        </layout>
-      </item>
-      <item>
-       <layout class="QHBoxLayout" name="horizontalLayout">
+      </widget>
+      <widget class="QWidget" name="tab_3">
+       <attribute name="title">
+        <string>LiDAR</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_12">
         <item>
-         <layout class="QVBoxLayout" name="verticalLayout_2">
-          <item>
-           <widget class="QLabel" name="label_12">
-            <property name="text">
-             <string>N-Weight Difference function</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QCheckBox" name="chkColorDifference">
-            <property name="text">
-             <string>Color</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QCheckBox" name="chkDepthDifference">
-            <property name="text">
-             <string>Depth</string>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-         </layout>
+         <widget class="QRadioButton" name="radForeground_2">
+          <property name="text">
+           <string>Foreground</string>
+          </property>
+         </widget>
         </item>
         <item>
-         <layout class="QVBoxLayout" name="verticalLayout_6">
-          <item>
-           <widget class="QLabel" name="label_14">
-            <property name="text">
-             <string>T-Weights</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QCheckBox" name="chkColorHistogram">
-            <property name="text">
-             <string>Color</string>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QCheckBox" name="chkDepthHistogram">
-            <property name="text">
-             <string>Depth</string>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-         </layout>
+         <widget class="QRadioButton" name="radBackground_2">
+          <property name="text">
+           <string>Background</string>
+          </property>
+         </widget>
         </item>
         <item>
-         <layout class="QVBoxLayout" name="verticalLayout">
-          <item>
-           <widget class="QPushButton" name="btnCut">
-            <property name="text">
-             <string>Cut Graph</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QCheckBox" name="chkDebug">
-            <property name="text">
-             <string>Debug Outputs</string>
-            </property>
-            <property name="checked">
-             <bool>false</bool>
-            </property>
-           </widget>
-          </item>
-         </layout>
+         <widget class="QPushButton" name="btnSegmentLiDAR_2">
+          <property name="text">
+           <string>Segment</string>
+          </property>
+         </widget>
         </item>
        </layout>
-      </item>
-     </layout>
-    </item>
-    <item row="1" column="0">
-     <layout class="QHBoxLayout" name="horizontalLayout_4">
-      <item>
-       <widget class="QLabel" name="label_15">
-        <property name="text">
-         <string>R</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QDoubleSpinBox" name="spinRWeight">
-        <property name="value">
-         <double>1.000000000000000</double>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="label_17">
-        <property name="text">
-         <string>G</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QDoubleSpinBox" name="spinGWeight">
-        <property name="value">
-         <double>1.000000000000000</double>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="label_18">
-        <property name="text">
-         <string>B</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QDoubleSpinBox" name="spinBWeight">
-        <property name="value">
-         <double>1.000000000000000</double>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="label_16">
-        <property name="text">
-         <string>D</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QDoubleSpinBox" name="spinDWeight">
-        <property name="maximum">
-         <double>9999.989999999999782</double>
-        </property>
-        <property name="value">
-         <double>1.000000000000000</double>
-        </property>
-       </widget>
-      </item>
-     </layout>
+      </widget>
+     </widget>
     </item>
    </layout>
   </widget>
