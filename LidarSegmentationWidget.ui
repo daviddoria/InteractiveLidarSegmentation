@@ -24,7 +24,7 @@
     <item>
      <layout class="QHBoxLayout" name="horizontalLayout_9">
       <item>
-       <layout class="QVBoxLayout" name="verticalLayout_8" stretch="1,15">
+       <layout class="QVBoxLayout" name="verticalLayout_8" stretch="1,15,0">
         <item>
          <widget class="QLabel" name="label_9">
           <property name="text">
@@ -35,10 +35,28 @@
         <item>
          <widget class="QVTKWidget" name="qvtkWidgetLeft"/>
         </item>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout_12">
+          <item>
+           <widget class="QPushButton" name="btnShowStrokesLeft">
+            <property name="text">
+             <string>Show strokes</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnHideStrokesLeft">
+            <property name="text">
+             <string>Hide strokes</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
        </layout>
       </item>
       <item>
-       <layout class="QVBoxLayout" name="verticalLayout_9" stretch="1,15">
+       <layout class="QVBoxLayout" name="verticalLayout_9" stretch="1,15,0">
         <item>
          <widget class="QLabel" name="label_10">
           <property name="text">
@@ -48,6 +66,24 @@
         </item>
         <item>
          <widget class="QVTKWidget" name="qvtkWidgetRight"/>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout_13">
+          <item>
+           <widget class="QPushButton" name="btnHideStrokesRight">
+            <property name="text">
+             <string>Hide strokes</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnShowStrokesRight">
+            <property name="text">
+             <string>Show strokes</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
         </item>
        </layout>
       </item>
@@ -83,7 +119,7 @@
        </size>
       </property>
       <property name="currentIndex">
-       <number>2</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="tab">
        <attribute name="title">
@@ -245,22 +281,7 @@
         <item>
          <layout class="QVBoxLayout" name="verticalLayout_4">
           <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_11">
-            <item>
-             <widget class="QPushButton" name="btnShowStrokesLeft">
-              <property name="text">
-               <string>Show strokes</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="btnHideStrokesLeft">
-              <property name="text">
-               <string>Hide strokes</string>
-              </property>
-             </widget>
-            </item>
-           </layout>
+           <layout class="QHBoxLayout" name="horizontalLayout_11"/>
           </item>
           <item>
            <layout class="QHBoxLayout" name="horizontalLayout_3">
@@ -419,22 +440,7 @@
         <item>
          <layout class="QVBoxLayout" name="verticalLayout_11">
           <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_10">
-            <item>
-             <widget class="QPushButton" name="btnShowStrokesRight">
-              <property name="text">
-               <string>Show strokes</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="btnHideStrokesRight">
-              <property name="text">
-               <string>Hide strokes</string>
-              </property>
-             </widget>
-            </item>
-           </layout>
+           <layout class="QHBoxLayout" name="horizontalLayout_10"/>
           </item>
           <item>
            <widget class="QPushButton" name="btnErodeSources">
