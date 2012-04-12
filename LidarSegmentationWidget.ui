@@ -78,8 +78,8 @@
      <widget class="QTabWidget" name="tabWidget">
       <property name="maximumSize">
        <size>
-        <width>1</width>
-        <height>1</height>
+        <width>1000000</width>
+        <height>1000000</height>
        </size>
       </property>
       <property name="currentIndex">
@@ -559,13 +559,13 @@
      <string>Selections</string>
     </property>
     <addaction name="action_Selections_SaveAsImage"/>
-    <addaction name="action_Selections_SaveForegroundSelectionsAsImage"/>
-    <addaction name="action_Selections_SaveBackgroundSelectionsAsImage"/>
-    <addaction name="actionSaveSelectionsAsText"/>
-    <addaction name="actionLoadSelectionsFromImage"/>
-    <addaction name="actionLoadSelectionsFromText"/>
-    <addaction name="action_Selections_LoadForegroundSelectionsFromImage"/>
-    <addaction name="action_Selections_LoadBackgroundSelectionsFromImage"/>
+    <addaction name="action_Selections_SaveForegroundAsImage"/>
+    <addaction name="action_Selections_SaveBackgroundAsImage"/>
+    <addaction name="action_Selections_SaveAsText"/>
+    <addaction name="action_Selections_LoadFromImage"/>
+    <addaction name="action_Selections_LoadFromText"/>
+    <addaction name="action_Selections_LoadForegroundFromImage"/>
+    <addaction name="action_Selections_LoadBackgroundFromImage"/>
    </widget>
    <widget class="QMenu" name="menuView">
     <property name="title">
@@ -573,6 +573,7 @@
     </property>
     <addaction name="action_View_DepthImage"/>
     <addaction name="action_View_ColorImage"/>
+    <addaction name="actionOptions"/>
    </widget>
    <widget class="QMenu" name="menuExport">
     <property name="title">
@@ -635,22 +636,22 @@
     <string>Save Selections as Image</string>
    </property>
   </action>
-  <action name="actionSaveSelectionsAsText">
+  <action name="action_Selections_SaveAsText">
    <property name="text">
     <string>Save Selections as Text</string>
    </property>
   </action>
-  <action name="actionLoadSelectionsFromImage">
+  <action name="action_Selections_LoadFromImage">
    <property name="text">
     <string>Load Selections from Image</string>
    </property>
   </action>
-  <action name="actionLoadSelectionsFromText">
+  <action name="action_Selections_LoadFromText">
    <property name="text">
     <string>Load Selections from Text</string>
    </property>
   </action>
-  <action name="action_Selections_LoadForegroundSelectionsFromImage">
+  <action name="action_Selections_LoadForegroundFromImage">
    <property name="text">
     <string>Load Foreground Selections from Image</string>
    </property>
@@ -675,19 +676,24 @@
     <string>Result screenshot</string>
    </property>
   </action>
-  <action name="action_Selections_SaveForegroundSelectionsAsImage">
+  <action name="action_Selections_SaveForegroundAsImage">
    <property name="text">
     <string>Save Foreground Selections as Image</string>
    </property>
   </action>
-  <action name="action_Selections_SaveBackgroundSelectionsAsImage">
+  <action name="action_Selections_SaveBackgroundAsImage">
    <property name="text">
     <string>Save Background Selections as Image</string>
    </property>
   </action>
-  <action name="action_Selections_LoadBackgroundSelectionsFromImage">
+  <action name="action_Selections_LoadBackgroundFromImage">
    <property name="text">
     <string>Load Background Selections from Image</string>
+   </property>
+  </action>
+  <action name="actionOptions">
+   <property name="text">
+    <string>Options</string>
    </property>
   </action>
  </widget>

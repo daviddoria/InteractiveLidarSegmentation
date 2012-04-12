@@ -22,8 +22,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "itkBilateralImageFilter.h"
 #include "itkBinaryBallStructuringElement.h"
 #include "itkBinaryDilateImageFilter.h"
+#include "itkConnectedComponentImageFilter.h"
 #include "itkGradientMagnitudeImageFilter.h"
 #include "itkImageRegionIterator.h"
+#include "itkLabelShapeKeepNObjectsImageFilter.h"
 #include "itkMaskImageFilter.h"
 #include "itkMaximumImageFilter.h"
 #include "itkMinimumMaximumImageCalculator.h"
@@ -209,7 +211,30 @@ void ImageGraphCut::CutGraph()
     ++nodeImageIterator;
     }
 
-  
+  // Only keep the largest segment
+  typedef itk::ConnectedComponentImageFilter<MaskImageType, MaskImageType> ConnectedComponentImageFilterType;
+  ConnectedComponentImageFilterType::Pointer connectedComponentFilter = ConnectedComponentImageFilterType::New ();
+  connectedComponentFilter->SetInput(SegmentMask);
+  connectedComponentFilter->Update();
+
+  //std::cout << "Number of objects: " << connectedComponentFilter->GetObjectCount() << std::endl;
+
+  typedef itk::LabelShapeKeepNObjectsImageFilter<MaskImageType> LabelShapeKeepNObjectsImageFilterType;
+  LabelShapeKeepNObjectsImageFilterType::Pointer labelShapeKeepNObjectsImageFilter = LabelShapeKeepNObjectsImageFilterType::New();
+  labelShapeKeepNObjectsImageFilter->SetInput(connectedComponentFilter->GetOutput());
+  labelShapeKeepNObjectsImageFilter->SetBackgroundValue(0);
+  labelShapeKeepNObjectsImageFilter->SetNumberOfObjects(1);
+  labelShapeKeepNObjectsImageFilter->SetAttribute(LabelShapeKeepNObjectsImageFilterType::LabelObjectType::NUMBER_OF_PIXELS);
+  labelShapeKeepNObjectsImageFilter->Update();
+
+  typedef itk::RescaleIntensityImageFilter<MaskImageType, MaskImageType> RescaleFilterType;
+  RescaleFilterType::Pointer rescaleFilter = RescaleFilterType::New();
+  rescaleFilter->SetOutputMinimum(0);
+  rescaleFilter->SetOutputMaximum(255);
+  rescaleFilter->SetInput(labelShapeKeepNObjectsImageFilter->GetOutput());
+  rescaleFilter->Update();
+
+  Helpers::DeepCopy(rescaleFilter->GetOutput(), SegmentMask.GetPointer());
 }
 
 void ImageGraphCut::PerformSegmentation()

@@ -59,16 +59,17 @@ public slots:
   void on_actionExit_triggered();
 
   // Selections menu
-  void on_action_Selections_SaveSelectionsAsImage_triggered();
-  void on_action_Selections_SaveForegroundSelectionsAsImage_triggered();
-  void on_action_Selections_SaveBackgroundSelectionsAsImage_triggered();
-  void on_action_Selections_SaveSelectionsAsText_triggered();
-  void on_action_Selections_LoadSelectionsFromImage_triggered();
-  void on_action_Selections_LoadSelectionsFromText_triggered();
-  void on_action_Selections_LoadForegroundSelectionsFromImage_triggered();
-  void on_action_Selections_LoadBackgroundSelectionsFromImage_triggered();
+  void on_action_Selections_SaveAsImage_triggered();
+  void on_action_Selections_SaveForegroundAsImage_triggered();
+  void on_action_Selections_SaveBackgroundAsImage_triggered();
+  void on_action_Selections_SaveAsText_triggered();
+  void on_action_Selections_LoadFromImage_triggered();
+  void on_action_Selections_LoadFromText_triggered();
+  void on_action_Selections_LoadForegroundFromImage_triggered();
+  void on_action_Selections_LoadBackgroundFromImage_triggered();
 
   // View menu
+  void on_actionOptions_triggered();
   void on_action_View_DepthImage_triggered();
   void on_action_View_ColorImage_triggered();
 

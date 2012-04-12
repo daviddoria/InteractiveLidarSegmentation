@@ -195,6 +195,11 @@ void LidarSegmentationWidget::on_actionExit_triggered()
   exit(0);
 }
 
+void LidarSegmentationWidget::on_actionOptions_triggered()
+{
+  this->tabWidget->setVisible(!this->tabWidget->isVisible());
+}
+
 void LidarSegmentationWidget::SetCameraPosition1()
 {
   double leftToRight[3] = {-1,0,0};
@@ -441,7 +446,7 @@ void LidarSegmentationWidget::on_btnClearBackground_clicked()
   UpdateSelections();
 }
 
-void LidarSegmentationWidget::on_action_Selections_SaveSelectionsAsImage_triggered()
+void LidarSegmentationWidget::on_action_Selections_SaveAsImage_triggered()
 {
   QString filename = QFileDialog::getSaveFileName(this,
      "Save Image", ".", "PNG Files (*.png)");
@@ -483,7 +488,7 @@ void LidarSegmentationWidget::on_action_Selections_SaveSelectionsAsImage_trigger
 }
 
 
-void LidarSegmentationWidget::on_action_Selections_SaveForegroundSelectionsAsImage_triggered()
+void LidarSegmentationWidget::on_action_Selections_SaveForegroundAsImage_triggered()
 {
   QString filename = QFileDialog::getSaveFileName(this,
      "Save Image", "foreground.png", "PNG Files (*.png)");
@@ -521,7 +526,7 @@ void LidarSegmentationWidget::on_action_Selections_SaveForegroundSelectionsAsIma
 }
 
 
-void LidarSegmentationWidget::on_action_Selections_SaveBackgroundSelectionsAsImage_triggered()
+void LidarSegmentationWidget::on_action_Selections_SaveBackgroundAsImage_triggered()
 {
   QString filename = QFileDialog::getSaveFileName(this,
      "Save Image", "background.png", "PNG Files (*.png)");
@@ -558,7 +563,7 @@ void LidarSegmentationWidget::on_action_Selections_SaveBackgroundSelectionsAsIma
   writer->Update();
 }
 
-void LidarSegmentationWidget::on_action_Selections_SaveSelectionsAsText_triggered()
+void LidarSegmentationWidget::on_action_Selections_SaveAsText_triggered()
 {
   QString filename = QFileDialog::getSaveFileName(this,
      "Save Selections", ".", "TXT Files (*.txt)");
@@ -582,7 +587,7 @@ void LidarSegmentationWidget::on_action_Selections_SaveSelectionsAsText_triggere
   fout.close();
 }
 
-void LidarSegmentationWidget::on_action_Selections_LoadForegroundSelectionsFromImage_triggered()
+void LidarSegmentationWidget::on_action_Selections_LoadForegroundFromImage_triggered()
 {
   QString filename = QFileDialog::getOpenFileName(this,
      "Open Image", ".", "PNG Files (*.png)");
@@ -604,7 +609,7 @@ void LidarSegmentationWidget::on_action_Selections_LoadForegroundSelectionsFromI
   UpdateSelections();
 }
 
-void LidarSegmentationWidget::on_action_Selections_LoadBackgroundSelectionsFromImage_triggered()
+void LidarSegmentationWidget::on_action_Selections_LoadBackgroundFromImage_triggered()
 {
   QString filename = QFileDialog::getOpenFileName(this,
      "Open Image", ".", "PNG Files (*.png)");
@@ -706,7 +711,6 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
 
   //float sameObjectThreshold = 0.1f;
 
-  
   VectorOfPixelsType consideredPixels;
 
   itk::ImageRegionIterator<MaskImageType> imageIterator(xorFilter->GetOutput(),
@@ -794,7 +798,7 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
   UpdateSelections();
 }
 
-void LidarSegmentationWidget::on_action_Selections_LoadSelectionsFromImage_triggered()
+void LidarSegmentationWidget::on_action_Selections_LoadFromImage_triggered()
 {
   QString filename = QFileDialog::getOpenFileName(this,
      "Open Image", ".", "PNG Files (*.png)");
@@ -840,7 +844,7 @@ void LidarSegmentationWidget::on_action_Selections_LoadSelectionsFromImage_trigg
 }
 
 
-void LidarSegmentationWidget::on_action_Selections_LoadSelectionsFromText_triggered()
+void LidarSegmentationWidget::on_action_Selections_LoadFromText_triggered()
 {
   QString filename = QFileDialog::getOpenFileName(this,
      "Open Image", ".", "PNG Files (*.png)");
@@ -913,10 +917,12 @@ void LidarSegmentationWidget::on_btnSegmentLiDAR_clicked()
   this->GraphCut.DifferenceFunction = new DepthDifference;
 
   // Get the number of bins from the slider
-  this->GraphCut.SetNumberOfHistogramBins(20);
+  this->GraphCut.SetNumberOfHistogramBins(this->sldHistogramBins->value());
 
   // Setup the graph cut from the GUI and the scribble selection
-  this->GraphCut.SetLambda(.0025);
+  //this->GraphCut.SetLambda(.0025);
+  this->GraphCut.SetLambda(ComputeLambda());
+  
   this->GraphCut.SetSources(this->Sources);
   this->GraphCut.SetSinks(this->Sinks);
 
@@ -930,6 +936,9 @@ void LidarSegmentationWidget::on_btnSegmentLiDAR_clicked()
 
   on_btnReseedForeground_clicked();
   on_btnGenerateNeighborSinks_clicked();
+
+  this->GraphCut.SetSources(this->Sources);
+  this->GraphCut.SetSinks(this->Sinks);
   
   std::cout << "Using depth+color N-weights." << std::endl;
   std::vector<float> weights(4,1.0f);
