@@ -17,6 +17,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "ImageGraphCut.h"
 
+// Submodules
+#include "ITKHelpers/ITKHelpers.h"
+
 // ITK
 //#include "itkAndImageFilter.h"
 #include "itkBilateralImageFilter.h"
@@ -57,8 +60,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // Qt
 #include <QMessageBox>
 
-// Custom
-#include "Helpers.h"
+// Submodules
+#include "Helpers/Helpers.h"
 
 ImageGraphCut::ImageGraphCut()
 {
@@ -129,11 +132,11 @@ ImageType::Pointer ImageGraphCut::GetImage()
 void ImageGraphCut::SetImage(const ImageType* const image)
 {
   this->Image = ImageType::New();
-  Helpers::DeepCopy(image, this->Image.GetPointer());
+  ITKHelpers::DeepCopy(image, this->Image.GetPointer());
 
   // Setup the output (mask) image
   //this->SegmentMask = GrayscaleImageType::New();
-  this->SegmentMask = MaskImageType::New();
+  this->SegmentMask = Mask::New();
   this->SegmentMask->SetRegions(this->Image->GetLargestPossibleRegion());
   this->SegmentMask->Allocate();
 
@@ -159,7 +162,7 @@ ImageType::Pointer ImageGraphCut::GetMaskedOutput()
   
   // Mask the input image with the mask
   //typedef itk::MaskImageFilter< TImage, GrayscaleImageType > MaskFilterType;
-  typedef itk::MaskImageFilter< ImageType, MaskImageType > MaskFilterType;
+  typedef itk::MaskImageFilter<ImageType, Mask> MaskFilterType;
   MaskFilterType::Pointer maskFilter = MaskFilterType::New();
   
   typedef itk::VariableLengthVector<double> VariableVectorType;
@@ -188,14 +191,16 @@ void ImageGraphCut::CutGraph()
   // Setup the values of the output (mask) image
   //GrayscalePixelType sinkPixel;
   //sinkPixel[0] = 0;
-  MaskImageType::PixelType sinkPixel = 0;
+  Mask::PixelType sinkPixel = 0;
 
   //GrayscalePixelType sourcePixel;
   //sourcePixel[0] = 255;
-  MaskImageType::PixelType sourcePixel = 255;
+  Mask::PixelType sourcePixel = 255;
 
-  // Iterate over the node image, querying the Kolmorogov graph object for the association of each pixel and storing them as the output mask
-  itk::ImageRegionConstIterator<NodeImageType> nodeImageIterator(this->NodeImage, this->NodeImage->GetLargestPossibleRegion());
+  // Iterate over the node image, querying the Kolmorogov graph object for the association of each pixel
+  // and storing them as the output mask
+  itk::ImageRegionConstIterator<NodeImageType> nodeImageIterator(this->NodeImage,
+                                                                 this->NodeImage->GetLargestPossibleRegion());
   nodeImageIterator.GoToBegin();
 
   while(!nodeImageIterator.IsAtEnd())
@@ -212,29 +217,31 @@ void ImageGraphCut::CutGraph()
     }
 
   // Only keep the largest segment
-  typedef itk::ConnectedComponentImageFilter<MaskImageType, MaskImageType> ConnectedComponentImageFilterType;
+  typedef itk::ConnectedComponentImageFilter<Mask, Mask> ConnectedComponentImageFilterType;
   ConnectedComponentImageFilterType::Pointer connectedComponentFilter = ConnectedComponentImageFilterType::New ();
   connectedComponentFilter->SetInput(SegmentMask);
   connectedComponentFilter->Update();
 
   //std::cout << "Number of objects: " << connectedComponentFilter->GetObjectCount() << std::endl;
 
-  typedef itk::LabelShapeKeepNObjectsImageFilter<MaskImageType> LabelShapeKeepNObjectsImageFilterType;
-  LabelShapeKeepNObjectsImageFilterType::Pointer labelShapeKeepNObjectsImageFilter = LabelShapeKeepNObjectsImageFilterType::New();
+  typedef itk::LabelShapeKeepNObjectsImageFilter<Mask> LabelShapeKeepNObjectsImageFilterType;
+  LabelShapeKeepNObjectsImageFilterType::Pointer labelShapeKeepNObjectsImageFilter =
+           LabelShapeKeepNObjectsImageFilterType::New();
   labelShapeKeepNObjectsImageFilter->SetInput(connectedComponentFilter->GetOutput());
   labelShapeKeepNObjectsImageFilter->SetBackgroundValue(0);
   labelShapeKeepNObjectsImageFilter->SetNumberOfObjects(1);
-  labelShapeKeepNObjectsImageFilter->SetAttribute(LabelShapeKeepNObjectsImageFilterType::LabelObjectType::NUMBER_OF_PIXELS);
+  labelShapeKeepNObjectsImageFilter
+            ->SetAttribute(LabelShapeKeepNObjectsImageFilterType::LabelObjectType::NUMBER_OF_PIXELS);
   labelShapeKeepNObjectsImageFilter->Update();
 
-  typedef itk::RescaleIntensityImageFilter<MaskImageType, MaskImageType> RescaleFilterType;
+  typedef itk::RescaleIntensityImageFilter<Mask, Mask> RescaleFilterType;
   RescaleFilterType::Pointer rescaleFilter = RescaleFilterType::New();
   rescaleFilter->SetOutputMinimum(0);
   rescaleFilter->SetOutputMaximum(255);
   rescaleFilter->SetInput(labelShapeKeepNObjectsImageFilter->GetOutput());
   rescaleFilter->Update();
 
-  Helpers::DeepCopy(rescaleFilter->GetOutput(), SegmentMask.GetPointer());
+  ITKHelpers::DeepCopy(rescaleFilter->GetOutput(), SegmentMask.GetPointer());
 }
 
 void ImageGraphCut::PerformSegmentation()
@@ -260,11 +267,13 @@ void ImageGraphCut::PerformSegmentation()
     }
 
   // Blank the output image
-  //itk::ImageRegionIterator<GrayscaleImageType> segmentMaskImageIterator(this->SegmentMask, this->SegmentMask->GetLargestPossibleRegion());
-  itk::ImageRegionIterator<MaskImageType> segmentMaskImageIterator(this->SegmentMask, this->SegmentMask->GetLargestPossibleRegion());
+  //itk::ImageRegionIterator<GrayscaleImageType> segmentMaskImageIterator(this->SegmentMask,
+  //             this->SegmentMask->GetLargestPossibleRegion());
+  itk::ImageRegionIterator<Mask> segmentMaskImageIterator(this->SegmentMask,
+                                                          this->SegmentMask->GetLargestPossibleRegion());
   segmentMaskImageIterator.GoToBegin();
 
-  MaskImageType::PixelType empty = 0;
+  Mask::PixelType empty = 0;
   //empty[0] = 0;
 
   while(!segmentMaskImageIterator.IsAtEnd())
@@ -328,10 +337,13 @@ const HistogramType* ImageGraphCut::CreateHistogram(std::vector<itk::Index<2> > 
   //std::cout << "Measurement vector size: " << this->ForegroundSample->GetMeasurementVectorSize() << std::endl;
   //std::cout << "Pixel size: " << this->Image->GetPixel(this->Sources[0]).GetNumberOfElements() << std::endl;
 
-  std::vector<float> minimumOfChannels = Helpers::ComputeMinOfAllChannels(this->Image);
-  std::vector<float> maximumOfChannels = Helpers::ComputeMaxOfAllChannels(this->Image);
-  
-  for(unsigned int pixelId = 0; pixelId < pixels.size(); pixelId++) // Add all of the indicated foreground pixels to the histogram
+  std::vector<ImageType::InternalPixelType> minimumOfChannels =
+          ITKHelpers::ComputeMinOfAllChannels(this->Image.GetPointer());
+  std::vector<ImageType::InternalPixelType> maximumOfChannels =
+          ITKHelpers::ComputeMaxOfAllChannels(this->Image.GetPointer());
+
+  // Add all of the indicated foreground pixels to the histogram
+  for(unsigned int pixelId = 0; pixelId < pixels.size(); pixelId++) 
     {
     if(!this->Image->GetPixel(pixels[pixelId])[4]) // Don't include invalid pixels in the histogram
       {
@@ -429,7 +441,8 @@ void ImageGraphCut::CreateNWeights()
   
   // We use a neighborhood iterator here even though we are looking only at a single pixel index in all images on each iteration because we use the neighborhood to determine edge validity.
   std::vector<NeighborhoodIteratorType::OffsetType> neighbors;
-  NeighborhoodIteratorType iterator(Helpers::Get1x1Radius(), this->Image, this->Image->GetLargestPossibleRegion());
+  NeighborhoodIteratorType iterator(ITKHelpers::Get1x1Radius(), this->Image,
+                                    this->Image->GetLargestPossibleRegion());
   ConstructNeighborhoodIterator(&iterator, neighbors);
 
   // Traverse the image adding an edge between:
@@ -541,9 +554,11 @@ void ImageGraphCut::CreateTWeights()
   std::vector<float> sourceHistogramValues;
   std::vector<float> sinkHistogramValues;
 
-  std::vector<float> minimumOfChannels = Helpers::ComputeMinOfAllChannels(this->Image);
-  std::vector<float> maximumOfChannels = Helpers::ComputeMaxOfAllChannels(this->Image);
-  
+  std::vector<ImageType::InternalPixelType> minimumOfChannels =
+          ITKHelpers::ComputeMinOfAllChannels(this->Image.GetPointer());
+  std::vector<ImageType::InternalPixelType> maximumOfChannels =
+          ITKHelpers::ComputeMaxOfAllChannels(this->Image.GetPointer());
+
   // Use the colors only for the t-weights
   unsigned int debugIteratorCounter = 0;
   while(!imageIterator.IsAtEnd())
@@ -635,16 +650,19 @@ void ImageGraphCut::CreateTWeights()
 
   if(this->Debug)
     {
-    std::cout << "Average sinkHistogramValue: " << Helpers::VectorAverage<float>(sinkHistogramValues) << std::endl;
-    std::cout << "Average sourceHistogramValue: " << Helpers::VectorAverage<float>(sourceHistogramValues) << std::endl;
+    std::cout << "Average sinkHistogramValue: " << Statistics::Average(sinkHistogramValues) << std::endl;
+    std::cout << "Average sourceHistogramValue: " << Statistics::Average(sourceHistogramValues) << std::endl;
     
-    std::cout << "Max sinkHistogramValue: " << *(std::max_element(sinkHistogramValues.begin(), sinkHistogramValues.end())) << std::endl;
-    std::cout << "Max sourceHistogramValue: " << *(std::max_element(sourceHistogramValues.begin(), sourceHistogramValues.end())) << std::endl;
+    std::cout << "Max sinkHistogramValue: "
+              << *(std::max_element(sinkHistogramValues.begin(), sinkHistogramValues.end())) << std::endl;
+    std::cout << "Max sourceHistogramValue: "
+              << *(std::max_element(sourceHistogramValues.begin(), sourceHistogramValues.end())) << std::endl;
     
-    std::cout << "Average sourceTWeights: " << Helpers::VectorAverage<float>(sourceTWeights) << std::endl;
-    std::cout << "Average sinkTWeights: " << Helpers::VectorAverage<float>(sinkTWeights) << std::endl;
+    std::cout << "Average sourceTWeights: " << Statistics::Average(sourceTWeights) << std::endl;
+    std::cout << "Average sinkTWeights: " << Statistics::Average(sinkTWeights) << std::endl;
     
-    std::cout << "Max sourceTWeights: " << *(std::max_element(sourceTWeights.begin(), sourceTWeights.end())) << std::endl;
+    std::cout << "Max sourceTWeights: "
+              << *(std::max_element(sourceTWeights.begin(), sourceTWeights.end())) << std::endl;
     std::cout << "Max sinkTWeights: " << *(std::max_element(sinkTWeights.begin(), sinkTWeights.end())) << std::endl;
     }
 }
@@ -653,7 +671,8 @@ void ImageGraphCut::SetHardSources(const std::vector<itk::Index<2> >& pixels)
 {
   // Set very high source weights for the pixels which were selected as foreground by the user
   
-  // If we are creating the debugging PolyData, we want to use the max of the "normal" t-weights instead of the infinity value so the range for visualization is reasonable
+  // If we are creating the debugging PolyData, we want to use the max of the "normal" t-weights instead
+  // of the infinity value so the range for visualization is reasonable
   float valuesRange[2];
   this->DebugGraphSourceWeights->GetValueRange(valuesRange);
   
@@ -743,7 +762,7 @@ void ImageGraphCut::SetNumberOfHistogramBins(const int bins)
   this->NumberOfHistogramBins = bins;
 }
 
-MaskImageType::Pointer ImageGraphCut::GetSegmentMask()
+Mask* ImageGraphCut::GetSegmentMask()
 {
   return this->SegmentMask;
 }

@@ -18,6 +18,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef IMAGEGRAPHCUT_H
 #define IMAGEGRAPHCUT_H
 
+// Submodules
+#include "Mask/Mask.h"
+
 // VTK
 #include <vtkSmartPointer.h>
 class vtkPolyData;
@@ -80,7 +83,7 @@ public:
   void SetHardSinks(const std::vector<itk::Index<2> >& pixels);
   
   /** Get the output of the segmentation */
-  MaskImageType::Pointer GetSegmentMask();
+  Mask* GetSegmentMask();
 
   /** Set the weight between the regional and boundary terms */
   void SetLambda(const float);
@@ -109,7 +112,7 @@ protected:
   GraphType* Graph;
 
   /** The output segmentation */
-  MaskImageType::Pointer SegmentMask;
+  Mask::Pointer SegmentMask;
 
   /** User specified foreground points */
   std::vector<itk::Index<2> > Sources;

@@ -46,7 +46,7 @@ int main(int argc, char*argv[])
 
   UnsignedCharScalarImageType* result = GraphCut.GetSegmentMask();
 
-  typedef  itk::ImageFileWriter< MaskImageType  > WriterType;
+  typedef  itk::ImageFileWriter<Mask> WriterType;
   WriterType::Pointer writer = WriterType::New();
   writer->SetFileName(outputFilename);
   writer->SetInput(result);
@@ -58,7 +58,8 @@ std::vector<itk::Index<2> > GetMaskedPixels(UnsignedCharScalarImageType::Pointer
 {
   std::vector<itk::Index<2> > pixels;
   
-  itk::ImageRegionConstIteratorWithIndex<UnsignedCharScalarImageType> imageIterator(image,image->GetLargestPossibleRegion());
+  itk::ImageRegionConstIteratorWithIndex<UnsignedCharScalarImageType> imageIterator
+             (image,image->GetLargestPossibleRegion());
 
   while(!imageIterator.IsAtEnd())
     {

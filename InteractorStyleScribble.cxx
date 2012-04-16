@@ -36,8 +36,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // ITK
 #include <itkImageRegionIterator.h>
 
-// Custom
-#include "Helpers.h"
+// Submodules
+#include "Helpers/Helpers.h"
+#include "ITKVTKHelpers/ITKVTKHelpers.h"
 
 vtkStandardNewMacro(InteractorStyleScribble);
 
@@ -148,7 +149,7 @@ void InteractorStyleScribble::CatchWidgetEvent(vtkObject* caller, long unsigned 
   //appendFilter->AddInputConnection(path->GetProducerPort());
 
   //std::vector<itk::Index<2> > newPoints = Helpers::PolyDataToPixelList(path);
-  this->Selection = Helpers::PolyDataToPixelList(path);
+  this->Selection = ITKVTKHelpers::PolyDataToPixelList(path);
   //std::cout << newPoints.size() << " new points." << std::endl;
 
   /*

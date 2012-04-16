@@ -17,9 +17,15 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "LidarSegmentationWidget.h"
 
+// Submodules
+#include "Mask/Mask.h"
+#include "Helpers/Helpers.h"
+#include "VTKHelpers/VTKHelpers.h"
+#include "ITKHelpers/ITKHelpers.h"
+#include "ITKVTKHelpers/ITKVTKHelpers.h"
+
 // Custom
 #include "Difference.hpp"
-#include "Helpers.h"
 #include "InteractorStyleImageNoLevel.h"
 #include "InteractorStyleScribble.h"
 
@@ -256,7 +262,7 @@ void LidarSegmentationWidget::on_actionSaveSegmentation_triggered()
     return;
   }
   // Write the file (object is white)
-  typedef  itk::ImageFileWriter< MaskImageType > WriterType;
+  typedef  itk::ImageFileWriter<Mask> WriterType;
   WriterType::Pointer writer = WriterType::New();
   writer->SetFileName(fileName.toStdString());
   writer->SetInput(this->GraphCut.GetSegmentMask());
@@ -297,19 +303,17 @@ void LidarSegmentationWidget::DisplaySegmentationResult()
 {
   // Convert the segmentation mask to a binary VTK image
   vtkSmartPointer<vtkImageData> VTKSegmentMask = vtkSmartPointer<vtkImageData>::New();
-  Helpers::ITKScalarImageToVTKImage(this->GraphCut.GetSegmentMask(), VTKSegmentMask);
+  ITKVTKHelpers::ITKScalarImageToScaledVTKImage(this->GraphCut.GetSegmentMask(),
+                                                VTKSegmentMask.GetPointer());
 
   // Convert the image into a VTK image for display
   vtkSmartPointer<vtkImageData> VTKImage = vtkSmartPointer<vtkImageData>::New();
-  //Helpers::ITKImageToVTKImage(this->GraphCut.GetMaskedOutput(), VTKImage);
-  
-  ImageType::Pointer maskedImage = ImageType::New();
-  Helpers::MaskImage(this->Image.GetPointer(), this->GraphCut.GetSegmentMask(), maskedImage.GetPointer());
-  Helpers::ITKImageToVTKImage(maskedImage.GetPointer(), VTKImage);
-  
+
+   ITKVTKHelpers::ITKImageToVTKRGBImage(this->Image.GetPointer(), VTKImage);
+
   // Mask the VTK image with the segmentation result/mask
   vtkSmartPointer<vtkImageData> VTKMaskedImage = vtkSmartPointer<vtkImageData>::New();
-  Helpers::MaskImage(VTKImage, VTKSegmentMask, VTKMaskedImage);
+  VTKHelpers::MaskImage(VTKImage, VTKSegmentMask, VTKMaskedImage);
 
   // Set the new output and refresh everything
   this->ResultImageSliceMapper->SetInputData(VTKMaskedImage);
@@ -318,17 +322,7 @@ void LidarSegmentationWidget::DisplaySegmentationResult()
   this->Sources = this->GraphCut.GetSources();
   this->Sinks = this->GraphCut.GetSinks();
   UpdateSelections();
-  
-  // We currently remove everything and re-add everything - see note about the "should be unnecessary" lines below.
-  //this->RightRenderer->RemoveAllViewProps();
-  //this->RightRenderer->AddViewProp(this->RightSourceSinkImageSlice);
-  
-  // These should be unnecessary because they are connected in the constructor... but the output is not displayed without them
-  //this->ResultImageSlice->SetMapper(this->ResultImageSliceMapper);
-  //this->RightRenderer->AddViewProp(this->ResultImageSlice);
 
-  
-  //this->RightRenderer->ResetCamera();
   this->Refresh();
 }
 
@@ -342,7 +336,7 @@ void LidarSegmentationWidget::ScribbleEventHandler(vtkObject* caller, long unsig
   // Dilate the path and mark the path and the dilated pixel of the path as foreground
   unsigned int dilateRadius = 2;
   std::vector<itk::Index<2> > thinSelection = this->LeftInteractorStyle->GetSelection();
-  std::vector<itk::Index<2> > selection = Helpers::DilatePixelList(thinSelection,
+  std::vector<itk::Index<2> > selection = ITKHelpers::DilatePixelList(thinSelection,
                                                                    this->Image->GetLargestPossibleRegion(),
                                                                    dilateRadius);
   
@@ -365,13 +359,13 @@ void LidarSegmentationWidget::ScribbleEventHandler(vtkObject* caller, long unsig
 void LidarSegmentationWidget::UpdateSelections()
 {
   // First, clear the image
-  Helpers::CreateTransparentImage(this->SourceSinkImageData);
+  VTKHelpers::MakeImageTransparent(this->SourceSinkImageData);
   
   unsigned char green[3] = {0, 255, 0};
   unsigned char red[3] = {255, 0, 0};
   
-  Helpers::SetPixels(this->SourceSinkImageData, this->Sources, green);
-  Helpers::SetPixels(this->SourceSinkImageData, this->Sinks, red);
+  ITKVTKHelpers::SetPixels(this->SourceSinkImageData, this->Sources, green);
+  ITKVTKHelpers::SetPixels(this->SourceSinkImageData, this->Sinks, red);
 
   this->SourceSinkImageData->Modified();
   
@@ -472,13 +466,13 @@ void LidarSegmentationWidget::on_action_Selections_SaveAsImage_triggered()
   greenPixel.SetRed(0);
   greenPixel.SetGreen(255);
   greenPixel.SetBlue(0);
-  Helpers::SetPixels<RGBImageType>(selectionsImage, this->Sources, greenPixel);
+  ITKHelpers::SetPixels(selectionsImage.GetPointer(), this->Sources, greenPixel);
   
   RGBPixelType redPixel;
   redPixel.SetRed(255);
   redPixel.SetGreen(0);
   redPixel.SetBlue(0);
-  Helpers::SetPixels<RGBImageType>(selectionsImage, this->Sinks, redPixel);
+  ITKHelpers::SetPixels(selectionsImage.GetPointer(), this->Sinks, redPixel);
 
   typedef  itk::ImageFileWriter< RGBImageType  > WriterType;
   WriterType::Pointer writer = WriterType::New();
@@ -513,10 +507,10 @@ void LidarSegmentationWidget::on_action_Selections_SaveForegroundAsImage_trigger
   whitePixel.SetGreen(255);
   whitePixel.SetBlue(255);
 
-  Helpers::SetPixelsInRegionToValue(selectionsImage.GetPointer(), selectionsImage->GetLargestPossibleRegion(),
+  ITKHelpers::SetPixelsInRegionToValue(selectionsImage.GetPointer(), selectionsImage->GetLargestPossibleRegion(),
                                     blackPixel);
 
-  Helpers::SetPixels(selectionsImage.GetPointer(), this->Sources, whitePixel);
+  ITKHelpers::SetPixels(selectionsImage.GetPointer(), this->Sources, whitePixel);
 
   typedef  itk::ImageFileWriter< RGBImageType  > WriterType;
   WriterType::Pointer writer = WriterType::New();
@@ -551,10 +545,10 @@ void LidarSegmentationWidget::on_action_Selections_SaveBackgroundAsImage_trigger
   whitePixel.SetGreen(255);
   whitePixel.SetBlue(255);
 
-  Helpers::SetPixelsInRegionToValue(selectionsImage.GetPointer(), selectionsImage->GetLargestPossibleRegion(),
+  ITKHelpers::SetPixelsInRegionToValue(selectionsImage.GetPointer(), selectionsImage->GetLargestPossibleRegion(),
                                     blackPixel);
 
-  Helpers::SetPixels(selectionsImage.GetPointer(), this->Sinks, whitePixel);
+  ITKHelpers::SetPixels(selectionsImage.GetPointer(), this->Sinks, whitePixel);
 
   typedef  itk::ImageFileWriter< RGBImageType  > WriterType;
   WriterType::Pointer writer = WriterType::New();
@@ -597,12 +591,12 @@ void LidarSegmentationWidget::on_action_Selections_LoadForegroundFromImage_trigg
     return;
     }
 
-  typedef  itk::ImageFileReader< MaskImageType  > ReaderType;
+  typedef  itk::ImageFileReader<Mask> ReaderType;
   ReaderType::Pointer reader = ReaderType::New();
   reader->SetFileName(filename.toStdString());
   reader->Update();
 
-  std::vector<itk::Index<2> > pixels = Helpers::GetNonZeroPixels(reader->GetOutput());
+  std::vector<itk::Index<2> > pixels = ITKHelpers::GetNonZeroPixels(reader->GetOutput());
 
   this->Sources = pixels;
 
@@ -619,12 +613,12 @@ void LidarSegmentationWidget::on_action_Selections_LoadBackgroundFromImage_trigg
     return;
     }
 
-  typedef  itk::ImageFileReader< MaskImageType  > ReaderType;
+  typedef  itk::ImageFileReader<Mask> ReaderType;
   ReaderType::Pointer reader = ReaderType::New();
   reader->SetFileName(filename.toStdString());
   reader->Update();
 
-  std::vector<itk::Index<2> > pixels = Helpers::GetNonZeroPixels(reader->GetOutput());
+  std::vector<itk::Index<2> > pixels = ITKHelpers::GetNonZeroPixels(reader->GetOutput());
 
   this->Sinks = pixels;
 
@@ -638,16 +632,16 @@ void LidarSegmentationWidget::on_btnGenerateNeighborSinks_clicked()
 
 void LidarSegmentationWidget::on_btnErodeSources_clicked()
 {
-  MaskImageType::Pointer sourcesImage = MaskImageType::New();
+  Mask::Pointer sourcesImage = Mask::New();
   sourcesImage->SetRegions(this->ImageRegion);
-  Helpers::IndicesToBinaryImage(this->Sources, sourcesImage);
+  ITKHelpers::IndicesToBinaryImage(this->Sources, sourcesImage);
 
-  typedef itk::BinaryBallStructuringElement<MaskImageType::PixelType,2> StructuringElementType;
+  typedef itk::BinaryBallStructuringElement<Mask::PixelType,2> StructuringElementType;
   StructuringElementType structuringElementBig;
   structuringElementBig.SetRadius(3);
   structuringElementBig.CreateStructuringElement();
 
-  typedef itk::BinaryErodeImageFilter <MaskImageType, MaskImageType, StructuringElementType> BinaryErodeImageFilterType;
+  typedef itk::BinaryErodeImageFilter<Mask, Mask, StructuringElementType> BinaryErodeImageFilterType;
 
   BinaryErodeImageFilterType::Pointer erodeFilter = BinaryErodeImageFilterType::New();
   erodeFilter->SetInput(sourcesImage);
@@ -656,26 +650,26 @@ void LidarSegmentationWidget::on_btnErodeSources_clicked()
 
   //this->Sources.clear();
 
-  this->Sources = Helpers::GetNonZeroPixels(erodeFilter->GetOutput());
+  this->Sources = ITKHelpers::GetNonZeroPixels(erodeFilter->GetOutput());
 
   UpdateSelections();
 }
 
 void LidarSegmentationWidget::GenerateNeighborSinks()
 {
-  MaskImageType::Pointer sourcesImage = MaskImageType::New();
+  Mask::Pointer sourcesImage = Mask::New();
   sourcesImage->SetRegions(this->ImageRegion);
-  Helpers::IndicesToBinaryImage(this->Sources, sourcesImage);
-  Helpers::WriteImage(sourcesImage.GetPointer(), "sourcesImage.png");
+  ITKHelpers::IndicesToBinaryImage(this->Sources, sourcesImage);
+  ITKHelpers::WriteImage(sourcesImage.GetPointer(), "sourcesImage.png");
   
   // Dilate the mask
   std::cout << "Dilating mask..." << std::endl;
-  typedef itk::BinaryBallStructuringElement<MaskImageType::PixelType,2> StructuringElementType;
+  typedef itk::BinaryBallStructuringElement<Mask::PixelType, 2> StructuringElementType;
   StructuringElementType structuringElement;
   structuringElement.SetRadius(1);
   structuringElement.CreateStructuringElement();
 
-  typedef itk::BinaryDilateImageFilter<MaskImageType, MaskImageType, StructuringElementType> BinaryDilateImageFilterType;
+  typedef itk::BinaryDilateImageFilter<Mask, Mask, StructuringElementType> BinaryDilateImageFilterType;
 
   BinaryDilateImageFilterType::Pointer dilateFilter = BinaryDilateImageFilterType::New();
   dilateFilter->SetInput(sourcesImage);
@@ -684,14 +678,14 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
 
   // Binary XOR the images to get the difference image
   std::cout << "XORing masks..." << std::endl;
-  typedef itk::XorImageFilter <MaskImageType> XorImageFilterType;
+  typedef itk::XorImageFilter<Mask> XorImageFilterType;
 
   XorImageFilterType::Pointer xorFilter = XorImageFilterType::New();
   xorFilter->SetInput1(dilateFilter->GetOutput());
   xorFilter->SetInput2(sourcesImage);
   xorFilter->Update();
 
-  Helpers::WriteImage(xorFilter->GetOutput(), "boundaryOfSegmentation.png");
+  ITKHelpers::WriteImage(xorFilter->GetOutput(), "boundaryOfSegmentation.png");
   
   // Iterate over the border pixels. If the closest pixel in the original segmentation has
   // a depth greater than a threshold, mark it as a new sink. Else, do not.
@@ -713,8 +707,8 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
 
   VectorOfPixelsType consideredPixels;
 
-  itk::ImageRegionIterator<MaskImageType> imageIterator(xorFilter->GetOutput(),
-                                                        xorFilter->GetOutput()->GetLargestPossibleRegion());
+  itk::ImageRegionIterator<Mask> imageIterator(xorFilter->GetOutput(),
+                                               xorFilter->GetOutput()->GetLargestPossibleRegion());
   while(!imageIterator.IsAtEnd())
     {
     if(imageIterator.Get()) // If the current pixel is in question
@@ -733,10 +727,10 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
     ImageType::PixelType currentPixel = this->Image->GetPixel(*iter);
 
     unsigned int radius = this->txtBackgroundCheckRadius->text().toUInt();
-    ImageType::RegionType desiredRegion = Helpers::GetRegionInRadiusAroundPixel(*iter, radius);
+    ImageType::RegionType desiredRegion = ITKHelpers::GetRegionInRadiusAroundPixel(*iter, radius);
     //std::cout << "desiredRegion: " << desiredRegion << std::endl;
     
-    itk::ImageRegionIterator<MaskImageType> sourcesImageIterator(sourcesImage, desiredRegion);
+    itk::ImageRegionIterator<Mask> sourcesImageIterator(sourcesImage, desiredRegion);
     
     std::vector<float> nonForegroundDepths;
     std::vector<float> foregroundDepths;
@@ -774,8 +768,12 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
     } // end loop over considered pixels
   
   unsigned char blue[3] = {0, 0, 255};
+//   ImageType::PixelType blue(3);
+//   blue[0] = 0;
+//   blue[1] = 0;
+//   blue[2] = 255;
   
-  Helpers::SetPixels(this->SourceSinkImageData, consideredPixels, blue);
+  ITKVTKHelpers::SetPixels(this->SourceSinkImageData.GetPointer(), consideredPixels, blue);
   this->SourceSinkImageData->Modified();
   this->Refresh();
   
@@ -784,8 +782,8 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
   newSinksImage->SetRegions(this->Image->GetLargestPossibleRegion());
   newSinksImage->Allocate();
 
-  Helpers::IndicesToBinaryImage(newSinks, newSinksImage);
-  Helpers::WriteImage(newSinksImage.GetPointer(), "newSinks.png");
+  ITKHelpers::IndicesToBinaryImage(newSinks, newSinksImage);
+  ITKHelpers::WriteImage(newSinksImage.GetPointer(), "newSinks.png");
 
   //std::cout << "Out of " << consideredCounter << " pixels considered, "
   //          << backgroundCounter << " were declared background." << std::endl;
@@ -896,9 +894,11 @@ void LidarSegmentationWidget::on_btnSegmentLiDAR_clicked()
   normalizedImage->Allocate();
 
   std::cout << "Normalizing image..." << std::endl;
-  Helpers::NormalizeImage(this->Image.GetPointer(), normalizedImage.GetPointer());
+  //ITKHelpers::DeepCopy(this->Image.GetPointer(), normalizedImage.GetPointer());
+  ITKHelpers::NormalizeImageChannels(this->Image.GetPointer(), normalizedImage.GetPointer());
 
-  std::cout << "Normalized image has " << normalizedImage->GetNumberOfComponentsPerPixel() << " channels." << std::endl;
+  std::cout << "Normalized image has " << normalizedImage->GetNumberOfComponentsPerPixel()
+            << " channels." << std::endl;
 
   //this->GraphCut.SetImage(this->Image);
   this->GraphCut.SetImage(normalizedImage.GetPointer());
@@ -964,9 +964,12 @@ void LidarSegmentationWidget::on_btnCut_clicked()
   normalizedImage->Allocate();
 
   std::cout << "Normalizing image..." << std::endl;
-  Helpers::NormalizeImage(this->Image.GetPointer(), normalizedImage.GetPointer());
+  //ITKHelpers::DeepCopy(this->Image.GetPointer(), normalizedImage.GetPointer());
+  //ITKHelpers::NormalizeVectorImage(normalizedImage.GetPointer());
+  ITKHelpers::NormalizeImageChannels(this->Image.GetPointer(), normalizedImage.GetPointer());
 
-  std::cout << "Normalized image has " << normalizedImage->GetNumberOfComponentsPerPixel() << " channels." << std::endl;
+  std::cout << "Normalized image has " << normalizedImage->GetNumberOfComponentsPerPixel()
+            << " channels." << std::endl;
   
   //this->GraphCut.SetImage(this->Image);
   this->GraphCut.SetImage(normalizedImage.GetPointer());
@@ -1105,7 +1108,7 @@ void LidarSegmentationWidget::OpenFile(const std::string& fileName)
     return;
     }
 
-  Helpers::DeepCopy(reader->GetOutput(), this->Image.GetPointer());
+  ITKHelpers::DeepCopy(reader->GetOutput(), this->Image.GetPointer());
 
   // Store the region so we can access it without needing to care which image it comes from
   this->ImageRegion = reader->GetOutput()->GetLargestPossibleRegion();
@@ -1119,7 +1122,7 @@ void LidarSegmentationWidget::OpenFile(const std::string& fileName)
   UpdateSelections();
 
   // Convert the ITK image to a VTK image and display it
-  Helpers::ITKImageToVTKImage(reader->GetOutput(), this->OriginalImageData);
+  ITKVTKHelpers::ITKImageToVTKRGBImage(reader->GetOutput(), this->OriginalImageData);
 
   this->OriginalImageSliceMapper->SetInputData(this->OriginalImageData);
   this->OriginalImageSlice->SetMapper(this->OriginalImageSliceMapper);
@@ -1128,8 +1131,9 @@ void LidarSegmentationWidget::OpenFile(const std::string& fileName)
   this->LeftRenderer->ResetCamera();
 
   // Setup the scribble canvas
-  Helpers::SetImageSize(this->OriginalImageData, this->SourceSinkImageData);
-  Helpers::CreateTransparentImage(this->SourceSinkImageData);
+  VTKHelpers::SetImageSize(this->OriginalImageData, this->SourceSinkImageData);
+  this->SourceSinkImageData->AllocateScalars(VTK_UNSIGNED_CHAR, 4);
+  VTKHelpers::MakeImageTransparent(this->SourceSinkImageData);
 
   this->LeftSourceSinkImageSliceMapper->SetInputData(this->SourceSinkImageData);
   this->LeftSourceSinkImageSlice->SetMapper(this->LeftSourceSinkImageSliceMapper);
@@ -1169,7 +1173,7 @@ void LidarSegmentationWidget::on_action_View_DepthImage_triggered()
   typedef itk::Image<ImageType::InternalPixelType, 2> ScalarImageType;
   ScalarImageType::Pointer depthImage = ScalarImageType::New();
   
-  Helpers::ExtractChannel(this->Image.GetPointer(), 3, depthImage.GetPointer());
+  ITKHelpers::ExtractChannel(this->Image.GetPointer(), 3, depthImage.GetPointer());
   
   typedef itk::ThresholdImageFilter<ScalarImageType> ThresholdImageFilterType;
 
@@ -1180,14 +1184,14 @@ void LidarSegmentationWidget::on_action_View_DepthImage_triggered()
   thresholdFilter->SetOutsideValue(maxDepth);
   thresholdFilter->Update();
   
-  Helpers::ITKScalarImageToVTKImage(thresholdFilter->GetOutput(), this->OriginalImageData);
+  ITKVTKHelpers::ITKScalarImageToScaledVTKImage(thresholdFilter->GetOutput(), this->OriginalImageData);
   
   Refresh();
 }
 
 void LidarSegmentationWidget::on_action_View_ColorImage_triggered()
 {
-  Helpers::ITKImageToVTKImage(this->Image.GetPointer(), this->OriginalImageData);
+  ITKVTKHelpers::ITKImageToVTKRGBImage(this->Image.GetPointer(), this->OriginalImageData);
   Refresh();
 }
 
@@ -1237,7 +1241,7 @@ void LidarSegmentationWidget::on_action_Export_ResultScreenshot_triggered()
 
 void LidarSegmentationWidget::on_btnReseedForeground_clicked()
 {
-  std::vector<itk::Index<2> > pixels = Helpers::GetNonZeroPixels(this->GraphCut.GetSegmentMask());
+  std::vector<itk::Index<2> > pixels = ITKHelpers::GetNonZeroPixels(this->GraphCut.GetSegmentMask());
 
   this->Sources = pixels;
 

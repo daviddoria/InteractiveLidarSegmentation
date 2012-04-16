@@ -17,7 +17,7 @@ typedef itk::Image<float, 2> FloatScalarImageType;
 
 // For writing images, we need to first convert to actual unsigned char images
 typedef itk::Image<unsigned char, 2> UnsignedCharScalarImageType;
-typedef UnsignedCharScalarImageType MaskImageType;
+//typedef UnsignedCharScalarImageType MaskImageType;
 
 // For traversing image with an 8-neighborhood-visit-only-once idea
 //typedef itk::ShapedNeighborhoodIterator<ImageType> NeighborhoodIteratorType;
