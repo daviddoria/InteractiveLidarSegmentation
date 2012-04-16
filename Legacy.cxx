@@ -744,7 +744,7 @@ void MainWindow::on_actionSaveSegmentation_triggered()
 /*
   // Write the file (object is white)
   //typedef  itk::ImageFileWriter< ImageAdaptorType > WriterType;
-  typedef  itk::ImageFileWriter< MaskImageType > WriterType;
+  typedef  itk::ImageFileWriter<Mask> WriterType;
   WriterType::Pointer writer = WriterType::New();
   writer->SetFileName(fileName.toStdString());
   //writer->SetInput(adaptor);
@@ -753,7 +753,7 @@ void MainWindow::on_actionSaveSegmentation_triggered()
   */
 
   // Write the inverted file (object is black)
-  MaskImageType::Pointer inverted = MaskImageType::New();
+  Mask::Pointer inverted = Mask::New();
   Helpers::InvertBinaryImage(this->GraphCut.GetSegmentMask(), inverted);
 
   //typedef  itk::ImageFileWriter< ImageAdaptorType > WriterType;

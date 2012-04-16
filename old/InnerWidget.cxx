@@ -303,7 +303,7 @@ void InnerWidget::actionSave_Segmentation_triggered()
 */
   // Write the file
   //typedef  itk::ImageFileWriter< ImageAdaptorType > WriterType;
-  typedef  itk::ImageFileWriter< MaskImageType > WriterType;
+  typedef  itk::ImageFileWriter<Mask> WriterType;
   WriterType::Pointer writer = WriterType::New();
   writer->SetFileName(fileName.toStdString());
   //writer->SetInput(adaptor);
