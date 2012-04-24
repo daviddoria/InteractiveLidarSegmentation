@@ -16,11 +16,13 @@ QT4_WRAP_CPP(LidarSegmentationMOCSrcs LidarSegmentationWidget.h)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR})
 
+# Submodules
 add_subdirectory(Helpers)
 add_subdirectory(VTKHelpers)
 add_subdirectory(ITKHelpers)
 add_subdirectory(ITKVTKHelpers)
 add_subdirectory(Mask)
+add_subdirectory(ScribbleInteractorStyle)
 
 FIND_PACKAGE(VTK REQUIRED)
 INCLUDE( ${USE_VTK_FILE} )
@@ -32,13 +34,12 @@ add_library(MaxFlow graph.cpp maxflow.cpp)
 
 ADD_EXECUTABLE(InteractiveLidarSegmentation InteractiveLidarSegmentation.cpp
 LidarSegmentationWidget.cpp
-InteractorStyleScribble.cxx
 InteractorStyleImageNoLevel.cxx
 ImageGraphCut.cxx
 ${LidarSegmentationMOCSrcs} ${LidarSegmentationUISrcs})
 TARGET_LINK_LIBRARIES(InteractiveLidarSegmentation ${VTK_LIBRARIES}
 # submodules
-libHelpers libITKHelpers libITKVTKHelpers libMask libVTKHelpers
+libHelpers libITKHelpers libITKVTKHelpers libMask libVTKHelpers libScribble
 QVTK ${QT_LIBRARIES} QtXml MaxFlow
 ${ITK_LIBRARIES}
 )

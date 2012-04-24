@@ -23,11 +23,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "VTKHelpers/VTKHelpers.h"
 #include "ITKHelpers/ITKHelpers.h"
 #include "ITKVTKHelpers/ITKVTKHelpers.h"
+#include "ScribbleInteractorStyle/vtkInteractorStyleScribble.h"
 
 // Custom
 #include "Difference.hpp"
 #include "InteractorStyleImageNoLevel.h"
-#include "InteractorStyleScribble.h"
 
 // ITK
 #include "itkBinaryBallStructuringElement.h"
@@ -123,7 +123,7 @@ void LidarSegmentationWidget::SharedConstructor()
 
   this->LeftRenderer->AddViewProp(this->OriginalImageSlice);
 
-  this->LeftInteractorStyle = vtkSmartPointer<InteractorStyleScribble>::New();
+  this->LeftInteractorStyle = vtkSmartPointer<vtkInteractorStyleScribble>::New();
   this->LeftInteractorStyle->AddObserver(this->LeftInteractorStyle->ScribbleEvent,
                                          this, &LidarSegmentationWidget::ScribbleEventHandler);
   this->LeftInteractorStyle->SetCurrentRenderer(this->LeftRenderer);
@@ -335,7 +335,9 @@ void LidarSegmentationWidget::ScribbleEventHandler(vtkObject* caller, long unsig
 
   // Dilate the path and mark the path and the dilated pixel of the path as foreground
   unsigned int dilateRadius = 2;
-  std::vector<itk::Index<2> > thinSelection = this->LeftInteractorStyle->GetSelection();
+  //std::vector<itk::Index<2> > thinSelection = this->LeftInteractorStyle->GetSelection();
+  std::vector<itk::Index<2> > thinSelection = ITKVTKHelpers::PointsToPixelList(this->LeftInteractorStyle->GetSelection());
+  
   std::vector<itk::Index<2> > selection = ITKHelpers::DilatePixelList(thinSelection,
                                                                    this->Image->GetLargestPossibleRegion(),
                                                                    dilateRadius);

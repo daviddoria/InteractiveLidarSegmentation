@@ -36,7 +36,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <vtkSmartPointer.h>
 
 // Custom
-class InteractorStyleScribble;
+class vtkInteractorStyleScribble;
 class InteractorStyleImageNoLevel;
 #include "ImageGraphCut.h"
 
@@ -124,7 +124,7 @@ private:
   float ComputeLambda();
 
   // Left pane
-  vtkSmartPointer<InteractorStyleScribble> LeftInteractorStyle;
+  vtkSmartPointer<vtkInteractorStyleScribble> LeftInteractorStyle;
   vtkSmartPointer<vtkImageSliceMapper> OriginalImageSliceMapper;
   vtkSmartPointer<vtkImageSlice> OriginalImageSlice;
   vtkSmartPointer<vtkRenderer> LeftRenderer;
