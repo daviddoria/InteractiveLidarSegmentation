@@ -139,9 +139,10 @@ void LidarSegmentationWidget::SharedConstructor()
   this->ResultImageSliceMapper->SetInputData(this->ResultImageData);
   this->ResultImageSlice = vtkSmartPointer<vtkImageSlice>::New();
   this->ResultImageSlice->SetMapper(this->ResultImageSliceMapper);
+  this->ResultImageSlice->VisibilityOff();
   this->RightStack = vtkSmartPointer<vtkImageStack>::New();
 
-  this->RightStack->AddImage(this->ResultImageSlice); // vtkTrivialProducer (0xad473f0): This data object does not contain the requested extent.
+  this->RightStack->AddImage(this->ResultImageSlice);
 
   this->RightRenderer = vtkSmartPointer<vtkRenderer>::New();
   this->RightRenderer->GradientBackgroundOn();
@@ -686,7 +687,7 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
   dilateFilter->Update();
 
   // Binary XOR the images to get the difference image
-  std::cout << "XORing masks..." << std::endl;
+  //std::cout << "XORing masks..." << std::endl;
   typedef itk::XorImageFilter<Mask> XorImageFilterType;
 
   XorImageFilterType::Pointer xorFilter = XorImageFilterType::New();
@@ -965,7 +966,7 @@ void LidarSegmentationWidget::on_btnSegmentLiDAR_clicked()
   if(!this->RightRenderer->HasViewProp(this->ResultImageSlice))
     {
     std::cout << "Added ResultImageSlice view prop." << std::endl;
-    //this->RightRenderer->AddViewProp(this->ResultImageSlice);
+    this->ResultImageSlice->VisibilityOn();
     this->ResultImageSlice->GetProperty()->SetLayerNumber(0); // 0 = Bottom of the stack
     this->RightSourceSinkImageSlice->GetProperty()->SetLayerNumber(1); // The source/sink image should be displayed on top of the result image.
     }

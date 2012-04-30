@@ -386,7 +386,7 @@ const HistogramType* ImageGraphCut::CreateHistogram(std::vector<itk::Index<2> > 
 void ImageGraphCut::CreateHistograms()
 {
   // This function creates ITK samples from the scribbled pixels and then computes the foreground and background histograms
-  std::cout << "CreateHistograms()" << std::endl;
+  //std::cout << "CreateHistograms()" << std::endl;
   
   std::vector<unsigned int> channelsToUse;
   if(this->IncludeColorInHistogram)
