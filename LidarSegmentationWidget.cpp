@@ -52,6 +52,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <vtkImageProperty.h>
 #include <vtkImageSlice.h>
 #include <vtkImageSliceMapper.h>
+#include <vtkImageStack.h>
 #include <vtkPNGWriter.h>
 #include <vtkPolyData.h>
 #include <vtkRenderer.h>
@@ -115,13 +116,16 @@ void LidarSegmentationWidget::SharedConstructor()
   this->OriginalImageSlice->GetProperty()->SetInterpolationTypeToNearest();
   this->OriginalImageSlice->SetMapper(this->OriginalImageSliceMapper);
 
+  this->LeftStack = vtkSmartPointer<vtkImageStack>::New();
+  this->LeftStack->AddImage(this->OriginalImageSlice);
+  
   this->LeftRenderer = vtkSmartPointer<vtkRenderer>::New();
   this->LeftRenderer->GradientBackgroundOn();
   this->LeftRenderer->SetBackground(this->BackgroundColor);
   this->LeftRenderer->SetBackground2(1,1,1);
   this->qvtkWidgetLeft->GetRenderWindow()->AddRenderer(this->LeftRenderer);
 
-  this->LeftRenderer->AddViewProp(this->OriginalImageSlice);
+  this->LeftRenderer->AddViewProp(this->LeftStack);
 
   this->LeftInteractorStyle = vtkSmartPointer<vtkInteractorStyleScribble>::New();
   this->LeftInteractorStyle->AddObserver(this->LeftInteractorStyle->ScribbleEvent,
@@ -135,14 +139,15 @@ void LidarSegmentationWidget::SharedConstructor()
   this->ResultImageSliceMapper->SetInputData(this->ResultImageData);
   this->ResultImageSlice = vtkSmartPointer<vtkImageSlice>::New();
   this->ResultImageSlice->SetMapper(this->ResultImageSliceMapper);
-  
+  this->RightStack = vtkSmartPointer<vtkImageStack>::New();
+
+  this->RightStack->AddImage(this->ResultImageSlice); // vtkTrivialProducer (0xad473f0): This data object does not contain the requested extent.
+
   this->RightRenderer = vtkSmartPointer<vtkRenderer>::New();
   this->RightRenderer->GradientBackgroundOn();
   this->RightRenderer->SetBackground(this->BackgroundColor);
   this->RightRenderer->SetBackground2(1,1,1);
   this->qvtkWidgetRight->GetRenderWindow()->AddRenderer(this->RightRenderer);
-  
-  this->RightRenderer->AddViewProp(this->ResultImageSlice);
 
   this->RightInteractorStyle = vtkSmartPointer<InteractorStyleImageNoLevel>::New();
   this->RightInteractorStyle->SetCurrentRenderer(this->RightRenderer);
@@ -158,18 +163,20 @@ void LidarSegmentationWidget::SharedConstructor()
   // Make the pixels sharp instead of blurry when zoomed
   this->LeftSourceSinkImageSlice->GetProperty()->SetInterpolationTypeToNearest(); 
   this->LeftSourceSinkImageSlice->SetMapper(this->LeftSourceSinkImageSliceMapper);
-  
-  this->LeftRenderer->AddViewProp(this->LeftSourceSinkImageSlice);
-  
+
+  this->LeftStack->AddImage(this->LeftSourceSinkImageSlice);
+
   this->RightSourceSinkImageSliceMapper = vtkSmartPointer<vtkImageSliceMapper>::New();
   this->RightSourceSinkImageSliceMapper->SetInputData(this->SourceSinkImageData);
-  
+
   this->RightSourceSinkImageSlice = vtkSmartPointer<vtkImageSlice>::New();
   // Make the pixels sharp instead of blurry when zoomed
   this->RightSourceSinkImageSlice->GetProperty()->SetInterpolationTypeToNearest(); 
   this->RightSourceSinkImageSlice->SetMapper(this->RightSourceSinkImageSliceMapper);
 
-  this->RightRenderer->AddViewProp(this->RightSourceSinkImageSlice);
+  this->RightStack->AddImage(this->RightSourceSinkImageSlice);
+
+  this->RightRenderer->AddViewProp(this->RightStack);
   
   // Default GUI settings
   this->radForeground->setChecked(true);
@@ -760,12 +767,12 @@ void LidarSegmentationWidget::GenerateNeighborSinks()
 
     if(difference > this->txtBackgroundThreshold->text().toFloat())
       {
-      std::cout << "Difference was " << difference << " so this is a sink pixel." << std::endl;
+      //std::cout << "Difference was " << difference << " so this is a sink pixel." << std::endl;
       newSinks.push_back(*iter);
       }
     else
       {
-      std::cout << "Difference was " << difference << " so this is NOT a sink pixel." << std::endl;
+      //std::cout << "Difference was " << difference << " so this is NOT a sink pixel." << std::endl;
       }
     } // end loop over considered pixels
   
@@ -955,6 +962,13 @@ void LidarSegmentationWidget::on_btnSegmentLiDAR_clicked()
   this->FutureWatcher.setFuture(futureStep2);
   this->ProgressDialog->exec();
 
+  if(!this->RightRenderer->HasViewProp(this->ResultImageSlice))
+    {
+    std::cout << "Added ResultImageSlice view prop." << std::endl;
+    //this->RightRenderer->AddViewProp(this->ResultImageSlice);
+    this->ResultImageSlice->GetProperty()->SetLayerNumber(0); // 0 = Bottom of the stack
+    this->RightSourceSinkImageSlice->GetProperty()->SetLayerNumber(1); // The source/sink image should be displayed on top of the result image.
+    }
 }
 
 void LidarSegmentationWidget::on_btnCut_clicked()
@@ -1044,6 +1058,13 @@ void LidarSegmentationWidget::on_btnCut_clicked()
 
   this->ProgressDialog->exec();
 
+  if(!this->RightRenderer->HasViewProp(this->ResultImageSlice))
+    {
+    std::cout << "Added ResultImageSlice view prop." << std::endl;
+    //this->RightRenderer->AddViewProp(this->ResultImageSlice);
+    this->ResultImageSlice->GetProperty()->SetLayerNumber(0); // 0 = bottom of the stack.
+    this->RightSourceSinkImageSlice->GetProperty()->SetLayerNumber(1);  // The source/sink image should be displayed on top of the result image.
+    }
 }
 
 #if 0
@@ -1121,7 +1142,7 @@ void LidarSegmentationWidget::OpenFile(const std::string& fileName)
   this->Sources.clear();
   this->Sinks.clear();
 
-  UpdateSelections();
+  //UpdateSelections();
 
   // Convert the ITK image to a VTK image and display it
   ITKVTKHelpers::ITKImageToVTKRGBImage(reader->GetOutput(), this->OriginalImageData);
@@ -1137,14 +1158,14 @@ void LidarSegmentationWidget::OpenFile(const std::string& fileName)
   this->SourceSinkImageData->AllocateScalars(VTK_UNSIGNED_CHAR, 4);
   VTKHelpers::MakeImageTransparent(this->SourceSinkImageData);
 
-  this->LeftSourceSinkImageSliceMapper->SetInputData(this->SourceSinkImageData);
-  this->LeftSourceSinkImageSlice->SetMapper(this->LeftSourceSinkImageSliceMapper);
-
-  this->RightSourceSinkImageSliceMapper->SetInputData(this->SourceSinkImageData);
-  this->RightSourceSinkImageSlice->SetMapper(this->RightSourceSinkImageSliceMapper);
+//   this->LeftSourceSinkImageSliceMapper->SetInputData(this->SourceSinkImageData);
+//   this->LeftSourceSinkImageSlice->SetMapper(this->LeftSourceSinkImageSliceMapper);
+// 
+//   this->RightSourceSinkImageSliceMapper->SetInputData(this->SourceSinkImageData);
+//   this->RightSourceSinkImageSlice->SetMapper(this->RightSourceSinkImageSliceMapper);
 
   // If this is called, the image disappears in the *left* renderer???
-  this->RightRenderer->AddViewProp(this->RightSourceSinkImageSlice); 
+  //this->RightRenderer->AddViewProp(this->RightSourceSinkImageSlice); 
   this->RightRenderer->ResetCamera();
 
   // This also adds the ImageSlice to the renderers
@@ -1153,12 +1174,13 @@ void LidarSegmentationWidget::OpenFile(const std::string& fileName)
   // This is done inside the InitializeTracer call
   //this->LeftRenderer->AddViewProp(this->LeftSourceSinkImageSlice); 
 
+  UpdateSelections();
   this->Refresh();
 }
 
 void LidarSegmentationWidget::Refresh()
 {
-  std::cout << "Refresh()" << std::endl;
+  //std::cout << "Refresh()" << std::endl;
   //this->SourceSinkImageSliceMapper->Render();
   //this->SourceSinkImageSliceMapper->Modified();
   
@@ -1166,6 +1188,7 @@ void LidarSegmentationWidget::Refresh()
   this->qvtkWidgetLeft->GetRenderWindow()->Render();
   this->qvtkWidgetRight->GetInteractor()->Render();
   this->qvtkWidgetLeft->GetInteractor()->Render();
+  //std::cout << "Exit Refresh()" << std::endl;
 }
 
 void LidarSegmentationWidget::on_action_View_DepthImage_triggered()

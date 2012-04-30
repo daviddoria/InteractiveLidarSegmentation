@@ -43,6 +43,7 @@ class InteractorStyleImageNoLevel;
 // Forward declarations
 class vtkImageSlice;
 class vtkImageSliceMapper;
+class vtkImageStack;
 
 class LidarSegmentationWidget : public QMainWindow, private Ui::LidarSegmentationWidget
 {
@@ -129,6 +130,7 @@ private:
   vtkSmartPointer<vtkImageSlice> OriginalImageSlice;
   vtkSmartPointer<vtkRenderer> LeftRenderer;
   vtkSmartPointer<vtkImageData> OriginalImageData;
+  vtkSmartPointer<vtkImageStack> LeftStack;
   
   // Right pane
   vtkSmartPointer<vtkImageData> ResultImageData;
@@ -136,6 +138,7 @@ private:
   vtkSmartPointer<vtkImageSlice> ResultImageSlice;
   vtkSmartPointer<vtkRenderer> RightRenderer;
   vtkSmartPointer<InteractorStyleImageNoLevel> RightInteractorStyle;
+  vtkSmartPointer<vtkImageStack> RightStack;
   
   /** Both panes - This data can be used by both the Left and Right SourceSinkImageSliceMapper */
   vtkSmartPointer<vtkImageData> SourceSinkImageData; 
