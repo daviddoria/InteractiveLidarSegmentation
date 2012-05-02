@@ -40,7 +40,7 @@ ${LidarSegmentationMOCSrcs} ${LidarSegmentationUISrcs})
 TARGET_LINK_LIBRARIES(InteractiveLidarSegmentation ${VTK_LIBRARIES}
 # submodules
 libHelpers libITKHelpers libITKVTKHelpers libMask libVTKHelpers libScribble
-QVTK ${QT_LIBRARIES} QtXml MaxFlow
+${QT_LIBRARIES} MaxFlow
 ${ITK_LIBRARIES}
 )
 INSTALL( TARGETS InteractiveLidarSegmentation RUNTIME DESTINATION ${INSTALL_DIR} )
