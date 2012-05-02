@@ -30,7 +30,7 @@ INCLUDE( ${USE_VTK_FILE} )
 FIND_PACKAGE(ITK REQUIRED)
 INCLUDE( ${USE_ITK_FILE} )
 
-add_library(MaxFlow graph.cpp maxflow.cpp)
+add_library(libMaxFlow graph.cpp maxflow.cpp)
 
 ADD_EXECUTABLE(InteractiveLidarSegmentation InteractiveLidarSegmentation.cpp
 LidarSegmentationWidget.cpp
@@ -40,7 +40,7 @@ ${LidarSegmentationMOCSrcs} ${LidarSegmentationUISrcs})
 TARGET_LINK_LIBRARIES(InteractiveLidarSegmentation ${VTK_LIBRARIES}
 # submodules
 libHelpers libITKHelpers libITKVTKHelpers libMask libVTKHelpers libScribble
-${QT_LIBRARIES} MaxFlow
+${QT_LIBRARIES} libMaxFlow
 ${ITK_LIBRARIES}
 )
 INSTALL( TARGETS InteractiveLidarSegmentation RUNTIME DESTINATION ${INSTALL_DIR} )
@@ -48,7 +48,7 @@ INSTALL( TARGETS InteractiveLidarSegmentation RUNTIME DESTINATION ${INSTALL_DIR}
 # ADD_EXECUTABLE(NonInteractive NonInteractive.cpp
 # graph.cpp maxflow.cpp
 # )
-# TARGET_LINK_LIBRARIES(NonInteractive vtkHybrid vtkWidgets
+# TARGET_LINK_LIBRARIES(NonInteractive ${VTK_LIBRARIES}
 # libHelpers libITKHelpers libITKVTKHelpers libMask libVTKHelpers
 # ${ITK_LIBRARIES}
 # )
