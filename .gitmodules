@@ -10,9 +10,9 @@
 [submodule "VTKHelpers"]
 	path = VTKHelpers
 	url = git@github.com:daviddoria/VTKHelpers.git
-[submodule "Mask"]
-	path = Mask
-	url = git@github.com:daviddoria/Mask.git
 [submodule "ScribbleInteractorStyle"]
 	path = ScribbleInteractorStyle
 	url = git@github.com:daviddoria/ScribbleInteractorStyle.git
+[submodule "Mask"]
+	path = Mask
+	url = git@github.com:daviddoria/Mask.git
